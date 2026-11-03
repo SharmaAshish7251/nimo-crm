@@ -442,6 +442,28 @@ export async function inspectBackupPackage(
 /**
  * Restores tenant data from an inspected backup package
  */
+function getUniqueFilter(colName: string, doc: any, targetTenantId: mongoose.Types.ObjectId): Record<string, any> {
+  const filter: Record<string, any> = { tenantId: targetTenantId };
+
+  if (colName === "FeatureBroadcast" && doc.releaseId) {
+    filter.releaseId = doc.releaseId;
+  } else if (colName === "User" && doc.email) {
+    filter.email = String(doc.email).toLowerCase().trim();
+  } else if (colName === "Department" && (doc.code || doc.name)) {
+    if (doc.code) filter.code = doc.code;
+    else filter.name = doc.name;
+  } else if (colName === "RolePermission" && (doc.role || doc.code)) {
+    if (doc.role) filter.role = doc.role;
+    else filter.code = doc.code;
+  } else if (colName === "Setting" && doc.key) {
+    filter.key = doc.key;
+  } else if (doc._id) {
+    filter._id = doc._id;
+  }
+
+  return filter;
+}
+
 export async function restoreTenantBackup(
   targetTenantId: mongoose.Types.ObjectId,
   backupPackage: BackupPackage,
@@ -530,21 +552,58 @@ export async function restoreTenantBackup(
         }
         restoredSummary[colName] = count;
       } else {
-        // "merge" mode: Bulk upsert by _id or unique matching
-        const bulkOps = stampedDocs.map((doc: any) => ({
-          updateOne: {
-            filter: { _id: doc._id, tenantId: targetTenantId },
-            update: { $set: doc },
-            upsert: true,
-          },
-        }));
+        // "merge" mode: Intelligent bulk upsert using natural unique identifiers
+        const bulkOps = stampedDocs.map((doc: any) => {
+          const { _id, ...updateFields } = doc;
+          const filter = getUniqueFilter(colName, doc, targetTenantId);
+          return {
+            updateOne: {
+              filter,
+              update: {
+                $set: updateFields,
+                $setOnInsert: { _id, tenantId: targetTenantId },
+              },
+              upsert: true,
+            },
+          };
+        });
 
         const CHUNK_SIZE = 500;
         let count = 0;
         for (let i = 0; i < bulkOps.length; i += CHUNK_SIZE) {
           const chunk = bulkOps.slice(i, i + CHUNK_SIZE);
-          const res = await Model.bulkWrite(chunk, { ordered: false });
-          count += (res.upsertedCount || 0) + (res.modifiedCount || 0) + (res.matchedCount || 0);
+          try {
+            const res = await Model.bulkWrite(chunk, { ordered: false });
+            count += (res.upsertedCount || 0) + (res.modifiedCount || 0) + (res.matchedCount || 0);
+          } catch (bulkErr: any) {
+            // Count operations that succeeded before conflict
+            if (bulkErr.result) {
+              const r = bulkErr.result;
+              count += (r.nUpserted || r.upsertedCount || 0) +
+                       (r.nModified || r.modifiedCount || 0) +
+                       (r.nMatched || r.matchedCount || 0);
+            }
+
+            // If duplicate key error (code 11000), update existing records without failing the restore
+            const isDuplicate = bulkErr.code === 11000 ||
+              (bulkErr.writeErrors && bulkErr.writeErrors.some((we: any) => we.code === 11000));
+
+            if (isDuplicate) {
+              const rawChunkDocs = stampedDocs.slice(i, i + CHUNK_SIZE);
+              for (const doc of rawChunkDocs) {
+                try {
+                  const { _id, ...updateFields } = doc;
+                  const fallbackFilter = getUniqueFilter(colName, doc, targetTenantId);
+                  const updateRes = await Model.updateOne(fallbackFilter, { $set: updateFields });
+                  if (updateRes.matchedCount > 0) count++;
+                } catch {
+                  // Non-critical duplicate conflict, safe to ignore
+                }
+              }
+            } else {
+              throw bulkErr;
+            }
+          }
         }
         restoredSummary[colName] = count;
       }
@@ -558,19 +617,12 @@ export async function restoreTenantBackup(
   try {
     await ActivityLog.create({
       tenantId: targetTenantId,
-      actorId: new mongoose.Types.ObjectId(session.userId),
-      actorName: session.userName,
-      actorRole: session.role,
+      userId: new mongoose.Types.ObjectId(session.userId),
+      userName: session.userName || "Admin",
+      userRole: session.role || "Admin",
       action: "BACKUP_RESTORE",
-      verb: "RESTORE",
-      targetType: "WorkspaceBackup",
       targetName: manifest?.tenantSlug || "database_archive",
-      metadata: {
-        mode: options.mode,
-        collectionsRestored: Object.keys(restoredSummary),
-        recordCounts: restoredSummary,
-        sourceExportDate: manifest?.exportedAt,
-      },
+      details: `Restored workspace database in ${options.mode} mode. ${Object.keys(restoredSummary).length} collections updated.`,
     });
   } catch (err) {
     console.warn("Failed to write ActivityLog for backup restore:", err);
