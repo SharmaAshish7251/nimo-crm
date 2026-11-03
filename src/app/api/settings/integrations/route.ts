@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       const target = toEmail?.trim() || session.userId;
 
       const { sendEmail } = await import("@/lib/mail");
-      await sendEmail({
+      const result = await sendEmail({
         to: target,
         subject: "[NIMO-CRM] Test Email Verification",
         text: `This is a verification test email from your NIMO-CRM dashboard dispatched at ${new Date().toLocaleString()}. All email sending systems are operational!`,
@@ -92,7 +92,11 @@ export async function POST(request: Request) {
         tenantId: tenantObjectId.toString(),
       });
 
-      return NextResponse.json({ success: true, message: `Test email successfully dispatched to ${target}` });
+      const message = result.fallbackUsed
+        ? `Test email delivered successfully to ${target} via System SMTP fallback (Google OAuth encountered a connection constraint).`
+        : `Test email successfully dispatched to ${target}!`;
+
+      return NextResponse.json({ success: true, message, fallbackUsed: Boolean(result.fallbackUsed) });
     }
 
     // ── ACTION 2: Test External MongoDB Connection ──

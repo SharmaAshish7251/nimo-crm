@@ -78,12 +78,16 @@ function getGoogleOAuthTransporter(activeEmail: string, refreshToken: string): n
   return cachedTransporter;
 }
 
-export async function sendEmail({ to, subject, text, html, attachments, tenantId }: SendMailOptions) {
+export async function sendEmail({ to, subject, text, html, attachments, tenantId }: SendMailOptions): Promise<{
+  success: boolean;
+  isDev?: boolean;
+  previewUrl?: string;
+  provider?: string;
+  fallbackUsed?: boolean;
+}> {
   const isProduction = process.env.NODE_ENV === "production";
-  let activeTransporter: nodemailer.Transporter | null = null;
-  let fromAddress = "";
 
-  // 1. Check if the tenant has an active Google OAuth or Custom SMTP integration
+  // Tier 1: Check Tenant-level Integration (Google OAuth or Tenant Custom SMTP)
   try {
     await connectToDatabase();
     const { Tenant } = await import("@/models/Tenant");
@@ -91,43 +95,66 @@ export async function sendEmail({ to, subject, text, html, attachments, tenantId
 
     if (tenant?.emailIntegration?.isConfigured) {
       const integration = tenant.emailIntegration;
+      const senderName = integration.senderName || tenant.name || "NIMO-CRM";
 
       if (integration.provider === "google_oauth" && integration.googleRefreshToken && integration.activeEmail) {
-        activeTransporter = getGoogleOAuthTransporter(integration.activeEmail, integration.googleRefreshToken);
-        if (activeTransporter) {
-          const senderName = integration.senderName || tenant.name || "NIMO-CRM";
-          fromAddress = `"${senderName}" <${integration.activeEmail}>`;
-          console.log(`[Mail Engine] Sending email via Google OAuth (${integration.activeEmail})`);
+        const googleTransporter = getGoogleOAuthTransporter(integration.activeEmail, integration.googleRefreshToken);
+        if (googleTransporter) {
+          try {
+            await googleTransporter.sendMail({
+              from: `"${senderName}" <${integration.activeEmail}>`,
+              to: to.toLowerCase().trim(),
+              subject,
+              text,
+              html,
+              attachments,
+            });
+            console.log(`[Mail Engine] Live email dispatched via Google OAuth (${integration.activeEmail})`);
+            return { success: true, isDev: false, provider: "google_oauth" };
+          } catch (oauthErr) {
+            console.warn(
+              "[Mail Engine] Google OAuth dispatch failed (SMTP requires https://mail.google.com/ or enabled Gmail API). Falling back to system SMTP...",
+              oauthErr instanceof Error ? oauthErr.message : oauthErr
+            );
+          }
         }
       } else if (integration.provider === "smtp" && integration.smtpHost && integration.smtpUser && integration.smtpPass) {
-        activeTransporter = nodemailer.createTransport({
-          host: integration.smtpHost,
-          port: integration.smtpPort || 587,
-          secure: (integration.smtpPort || 587) === 465,
-          auth: { user: integration.smtpUser, pass: integration.smtpPass },
-          tls: { rejectUnauthorized: isProduction },
-        });
-        const senderName = integration.senderName || tenant.name || "NIMO-CRM";
-        fromAddress = `"${senderName}" <${integration.smtpUser}>`;
-        console.log(`[Mail Engine] Sending email via Tenant Custom SMTP (${integration.smtpUser})`);
+        try {
+          const tenantSmtp = nodemailer.createTransport({
+            host: integration.smtpHost,
+            port: integration.smtpPort || 587,
+            secure: (integration.smtpPort || 587) === 465,
+            auth: { user: integration.smtpUser, pass: integration.smtpPass },
+            tls: { rejectUnauthorized: isProduction },
+          });
+          await tenantSmtp.sendMail({
+            from: `"${senderName}" <${integration.smtpUser}>`,
+            to: to.toLowerCase().trim(),
+            subject,
+            text,
+            html,
+            attachments,
+          });
+          console.log(`[Mail Engine] Live email dispatched via Tenant Custom SMTP (${integration.smtpUser})`);
+          return { success: true, isDev: false, provider: "custom_smtp" };
+        } catch (customSmtpErr) {
+          console.warn("[Mail Engine] Tenant custom SMTP failed. Falling back to system SMTP...", customSmtpErr);
+        }
       }
     }
   } catch (err) {
-    console.warn("[Mail Engine] Could not load tenant email integration, falling back to system SMTP:", err);
+    console.warn("[Mail Engine] Could not load tenant email integration, checking system SMTP:", err);
   }
 
-  // 2. Fallback to System Live SMTP (process.env.SMTP_*)
-  if (!activeTransporter) {
-    activeTransporter = getSystemLiveTransporter();
-    const user = process.env.SMTP_USER?.trim();
-    const rawFrom = process.env.SMTP_FROM?.trim()?.replace(/^["']|["']$/g, "");
-    fromAddress = rawFrom || (user ? `NIMO-CRM <${user}>` : "NIMO-CRM <noreply@nimo-crm.com>");
-  }
-
-  // 3. Dispatch Live Email
-  if (activeTransporter) {
+  // Tier 2: System SMTP (process.env.SMTP_*)
+  const systemTransporter = getSystemLiveTransporter();
+  if (systemTransporter) {
     try {
-      await activeTransporter.sendMail({
+      const user = process.env.SMTP_USER?.trim();
+      const rawFrom = process.env.SMTP_FROM?.trim()?.replace(/^["']|["']$/g, "");
+      const fromAddress = rawFrom || (user ? `NIMO-CRM <${user}>` : "NIMO-CRM <noreply@nimo-crm.com>");
+
+      await systemTransporter.sendMail({
         from: fromAddress,
         to: to.toLowerCase().trim(),
         subject,
@@ -135,47 +162,48 @@ export async function sendEmail({ to, subject, text, html, attachments, tenantId
         html,
         attachments,
       });
-      console.log(`[Mail Engine] Live email dispatched successfully to ${to}`);
-      return { success: true, isDev: false };
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error("[Mail Engine Error] Delivery failed:", errMsg);
-      throw new Error(`Email Delivery Failed: ${errMsg}`);
+      console.log(`[Mail Engine] Live email dispatched successfully to ${to} via System SMTP`);
+      return { success: true, isDev: false, provider: "system_smtp", fallbackUsed: true };
+    } catch (sysErr: any) {
+      console.error("[Mail Engine] System SMTP failed:", sysErr.message);
+      if (isProduction) {
+        throw new Error(`Email Delivery Failed: ${sysErr.message}`);
+      }
     }
   }
 
-  // 4. Production Guard
-  if (isProduction) {
-    throw new Error(
-      "No email sending method is configured. Please sign in with Google or configure SMTP credentials in your dashboard settings."
-    );
+  // Tier 3: Developer Sandbox (local development only)
+  if (!isProduction) {
+    console.warn("[Mail Dev Sandbox] Falling back to Ethereal sandbox...");
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      const devTransporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      });
+
+      const info = await devTransporter.sendMail({
+        from: '"NIMO-CRM Dev" <noreply@nimo-crm.com>',
+        to: to.toLowerCase().trim(),
+        subject: `[DEV] ${subject}`,
+        text,
+        html,
+        attachments,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info) || "";
+      console.log(`[Mail Dev Sandbox] Dispatched to ${to}. Preview: ${previewUrl}`);
+      return { success: true, isDev: true, previewUrl, provider: "ethereal_sandbox" };
+    } catch (err: unknown) {
+      console.error("[Mail Dev Sandbox Error]", err);
+      return { success: true, isDev: true, provider: "mock_fallback" };
+    }
   }
 
-  // 5. Developer Sandbox (local development only)
-  console.warn("[Mail Dev Sandbox] Falling back to Ethereal sandbox...");
-  try {
-    const testAccount = await nodemailer.createTestAccount();
-    const devTransporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false,
-      auth: { user: testAccount.user, pass: testAccount.pass },
-    });
-
-    const info = await devTransporter.sendMail({
-      from: '"NIMO-CRM Dev" <noreply@nimo-crm.com>',
-      to: to.toLowerCase().trim(),
-      subject: `[DEV] ${subject}`,
-      text,
-      html,
-      attachments,
-    });
-
-    const previewUrl = nodemailer.getTestMessageUrl(info) || "";
-    console.log(`[Mail Dev Sandbox] Dispatched to ${to}. Preview: ${previewUrl}`);
-    return { success: true, isDev: true, previewUrl };
-  } catch (err: unknown) {
-    console.error("[Mail Dev Sandbox Error]", err);
-    return { success: true, isDev: true };
-  }
+  // Tier 4: Production Guard
+  throw new Error(
+    "No operational email sending method is configured. Please sign in with Google or configure SMTP credentials in your dashboard settings."
+  );
 }

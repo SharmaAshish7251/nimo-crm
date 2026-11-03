@@ -144,23 +144,46 @@ export default function DataBackupRestoreTab() {
       setIsExporting(true);
       const collections =
         selectedDomains.length === BACKUP_DOMAINS.length
-          ? "all"
+          ? ["all"]
           : BACKUP_DOMAINS.filter((d) => selectedDomains.includes(d.id))
-              .flatMap((d) => d.collections)
-              .join(",");
+              .flatMap((d) => d.collections);
 
-      const url = `/api/backup/export?format=json&sanitize=${sanitizeExport}&collections=${encodeURIComponent(collections)}`;
+      const res = await fetch("/api/backup/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collections,
+          sanitize: sanitizeExport,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "Failed to generate backup export.", "error");
+        return;
+      }
+
+      const result = await res.json();
+      const backupPackage = {
+        manifest: result.manifest,
+        data: result.data,
+      };
+
+      const filename = `nimo_backup_${result.manifest.tenantSlug || "workspace"}_${new Date().toISOString().replace(/[:.]/g, "-")}.nimo.json`;
+      const blob = new Blob([JSON.stringify(backupPackage, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", "");
+      link.setAttribute("download", filename);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-      showToast("Workspace database backup package generated and downloading.");
+      showToast(`Workspace backup exported successfully (${result.manifest.totalRecords} records across ${result.manifest.totalCollections} collections).`);
       fetchHistory();
-    } catch {
-      showToast("Failed to initiate backup export.", "error");
+    } catch (err: any) {
+      showToast(err.message || "Failed to initiate backup export.", "error");
     } finally {
       setIsExporting(false);
     }

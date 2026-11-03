@@ -340,18 +340,12 @@ export async function exportTenantBackup(
   try {
     await ActivityLog.create({
       tenantId: tenantObjectId,
-      actorId: new mongoose.Types.ObjectId(session.userId),
-      actorName: session.userName,
-      actorRole: session.role,
+      userId: new mongoose.Types.ObjectId(session.userId),
+      userName: session.userName || "Admin",
+      userRole: session.role || "Admin",
       action: "BACKUP_EXPORT",
-      verb: "EXPORT",
-      targetType: "WorkspaceBackup",
-      targetName: `${tenantSlug}_backup.nexace.json`,
-      metadata: {
-        totalCollections: manifest.totalCollections,
-        totalRecords: manifest.totalRecords,
-        isSanitized: manifest.isSanitized,
-      },
+      targetName: `${tenantSlug}_backup.nimo.json`,
+      details: `Exported ${totalRecords} records across ${Object.keys(dataPayload).length} collections.`,
     });
   } catch (err) {
     console.warn("Failed to write ActivityLog for backup export:", err);
