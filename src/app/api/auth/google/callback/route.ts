@@ -182,10 +182,10 @@ export async function GET(request: Request) {
         });
       }
 
-      // Check existing user count to determine initial role
-      const userCount = await User.countDocuments({ tenantId: tenantDoc._id });
-      const role = userCount === 0 ? "Admin" : "Employee";
-      const status = role === "Admin" ? "Active" : "Pending";
+      // All Google sign-ins are created as Employee role with Pending status
+      // Admin must approve them from the Users management panel
+      const role = "Employee";
+      const status = "Pending";
 
       targetUser = await User.create({
         name: profile.name || "Google User",
