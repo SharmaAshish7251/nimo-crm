@@ -64,7 +64,7 @@ export function CrmMotionShowcase() {
 
           <div className={styles.windowTitleCenter}>
             <i className="fa-solid fa-layer-group" />
-            <span>Apex Technologies Workspace · NexAce CRM</span>
+            <span>Apex Technologies Workspace · NIMO-CRM</span>
           </div>
 
           <div className={styles.windowStatusRight}>

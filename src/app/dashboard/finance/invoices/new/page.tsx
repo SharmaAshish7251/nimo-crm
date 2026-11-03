@@ -67,7 +67,7 @@ const SERVICE_CATEGORIES = [
 ];
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "PKR", "CAD", "AUD"];
-const VENTURES = ["Ace Consultancys", "NexAce Tech"];
+const VENTURES = ["Ace Consultancys", "NIMO Tech"];
 
 const CURSIVE_FONTS = [
   { name: "Signature Brush", font: "'Brush Script MT', 'Segoe Script', cursive" },
@@ -601,7 +601,7 @@ function NewInvoiceContent() {
     if (recipientMode === "internal") {
       return {
         name: selectedInternal?.name || "Internal Team Member",
-        company: "NexAce Internal",
+        company: "NIMO Internal",
         email: selectedInternal?.email || "",
         scope: "internal" as const,
         badge: selectedInternal?.employmentType || "Internal Employee",
@@ -779,7 +779,7 @@ function NewInvoiceContent() {
               records: syncedAttendanceData.timesheetRecords,
             }
           : undefined,
-        billedToName: "NexAce Technologies",
+        billedToName: "NIMO Technologies",
         businessName: recipientInfo.name,
         customerNo: recipientMode === "internal" ? (selectedInternal?.email || "") : "",
         targetUserId: recipientMode === "internal" ? selectedInternal?._id : undefined,
@@ -1330,7 +1330,7 @@ function NewInvoiceContent() {
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-muted-foreground">Assigned Project</label>
                       <Input
-                        placeholder="e.g. NexAce Redesign Phase 2"
+                        placeholder="e.g. NIMO Redesign Phase 2"
                         className="h-8 text-xs"
                         value={newExternalForm.assignedProject}
                         onChange={(e) => setNewExternalForm((p) => ({ ...p, assignedProject: e.target.value }))}

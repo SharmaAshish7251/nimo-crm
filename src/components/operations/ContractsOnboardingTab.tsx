@@ -1965,7 +1965,7 @@ export function ContractsOnboardingTab() {
                           </label>
                           <Input
                             id="input-sender.name"
-                            placeholder="e.g. NexAce Technologies Ltd."
+                            placeholder="e.g. NIMO Technologies Ltd."
                             value={contractForm.sender.name}
                             onChange={(e) => {
                               clearFieldError("sender.name");

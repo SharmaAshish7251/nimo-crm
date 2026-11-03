@@ -96,7 +96,7 @@ function ForgotPasswordForm() {
               <i className="fa-solid fa-layer-group text-xs" />
             </div>
             <span className="font-extrabold text-foreground">
-              NexAce <span className="text-[#00c5a0]">CRM</span>
+              NIMO <span className="text-[#00c5a0]">CRM</span>
             </span>
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
@@ -371,7 +371,7 @@ function ForgotPasswordForm() {
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="e.g. admin@nexace.com"
+                  placeholder="e.g. admin@nimo-crm.com"
                   defaultValue={urlEmail}
                   required
                 />

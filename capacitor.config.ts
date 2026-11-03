@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.nexace.crm",
-  appName: "NexAce CRM",
+  appName: "NIMO-CRM",
   webDir: "public",
   backgroundColor: "#eefbf9",
   server: {

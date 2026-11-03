@@ -1,6 +1,6 @@
 {
-  "name": "NexAce CRM",
-  "short_name": "NexAce CRM",
+  "name": "NIMO-CRM",
+  "short_name": "NIMO-CRM",
   "description": "Enterprise multi-tenant workspace management platform",
   "start_url": "/dashboard",
   "display": "standalone",

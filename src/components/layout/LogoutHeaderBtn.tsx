@@ -53,7 +53,7 @@ export function LogoutHeaderBtn() {
               <h3 className="text-lg font-bold text-foreground">Confirm Log Out</h3>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Are you sure you want to sign out of your NexAce CRM workspace?
+              Are you sure you want to sign out of your NIMO-CRM workspace?
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button

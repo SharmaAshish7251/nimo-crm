@@ -500,7 +500,7 @@ export function ProfileCompletionBanner() {
                 <i className="fa-solid fa-user-astronaut text-2xl" />
               </div>
               <h3 className="text-xl font-bold text-foreground">
-                Welcome to NexAce CRM, {user?.name?.split(" ")[0] || "there"}! 👋
+                Welcome to NIMO-CRM, {user?.name?.split(" ")[0] || "there"}! 👋
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Your account is ready. Let&apos;s take a quick minute to fill out your profile details so your team members can reach you seamlessly.

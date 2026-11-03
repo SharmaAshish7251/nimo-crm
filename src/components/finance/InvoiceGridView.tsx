@@ -172,10 +172,10 @@ function formatForInvoiceDetails(inv: any): InvoiceDetailsData {
     invoiceDate: inv.issuedDate || inv.invoiceDate || new Date().toISOString().slice(0, 10),
     dueDate: inv.dueDate || "",
     customerNo: inv.customerNo || "",
-    businessName: inv.businessName || inv.client || "NexAce Technologies",
+    businessName: inv.businessName || inv.client || "NIMO Technologies",
     businessAddress: inv.businessAddress || "",
     businessEmail: inv.businessEmail || "",
-    billedToName: inv.billedToName || inv.venture || "NexAce Technologies",
+    billedToName: inv.billedToName || inv.venture || "NIMO Technologies",
     billedToAddress: inv.billedToAddress || "",
     billedToEmail: inv.billedToEmail || "",
     items,
@@ -1950,7 +1950,7 @@ export default function InvoiceGridView({
 
                   {(() => {
                     const payeeUpi = paymentModal.upiId.trim();
-                    const payeeName = (paymentModal.invoice.client || "Payee").replace(/[^a-zA-Z0-9 ]/g, "").trim() || "NexAcePayee";
+                    const payeeName = (paymentModal.invoice.client || "Payee").replace(/[^a-zA-Z0-9 ]/g, "").trim() || "NIMOPayee";
                     const amount = Number(paymentModal.invoice.amount || 0);
                     const invoiceNo = paymentModal.invoice.invoiceNo || "INV";
                     const upiPayUrl = `upi://pay?pa=${encodeURIComponent(payeeUpi)}&pn=${encodeURIComponent(payeeName)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoiceNo}`)}`;

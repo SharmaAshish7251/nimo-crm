@@ -35,12 +35,12 @@ export const FEATURE_RELEASES: FeatureRelease[] = [
     releaseDate: "November 2026",
     badge: "Data & Disaster Recovery",
     title: "Universal Data Backup, Export & Database Recovery Desk",
-    subtitle: "Full workspace snapshot backup, portable database file restore (.nexace.json) with merge or overwrite protection, and universal CSV/Excel tabular importer.",
+    subtitle: "Full workspace snapshot backup, portable database file restore (.nimo.json) with merge or overwrite protection, and universal CSV/Excel tabular importer.",
     features: [
       {
         id: "universal-database-backup-export",
         title: "Full Workspace Database Backup & Portable Archive",
-        description: "1-Click complete snapshot of all 56 tenant collections into a verified, SHA-256 checksummed .nexace.json backup archive with selective domain filtering and optional staging data sanitization.",
+        description: "1-Click complete snapshot of all 56 tenant collections into a verified, SHA-256 checksummed .nimo.json backup archive with selective domain filtering and optional staging data sanitization.",
         icon: "fa-solid fa-box-archive text-teal-600",
         badge: "NEW",
         tag: "Data & Backup",
@@ -372,7 +372,7 @@ export function getLatestFeatureRelease(): FeatureRelease | null {
  * Storage key for tracking user feature acknowledgement
  */
 export function getFeatureSeenStorageKey(userId: string): string {
-  return `nexace_seen_feature_release_${userId}`;
+  return `nimo_seen_feature_release_${userId}`;
 }
 
 /**

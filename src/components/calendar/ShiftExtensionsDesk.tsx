@@ -336,7 +336,7 @@ export function ShiftExtensionsDesk({
 
     const slip = [
       `=========================================`,
-      `    NEXACE CRM SHIFT AUDIT DOSSIER      `,
+      `    NIMO-CRM SHIFT AUDIT DOSSIER      `,
       `=========================================`,
       `Record ID     : ${rec._id}`,
       `Employee      : ${emp?.name || "Team Member"}`,

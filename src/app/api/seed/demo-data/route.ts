@@ -221,7 +221,7 @@ export async function POST() {
           senderId: userObjectId,
           senderName: session.userName,
           senderRole: session.role,
-          content: "Welcome to the NexAce Team Workspace! Feel free to ask any questions here.",
+          content: "Welcome to the NIMO-CRM Team Workspace! Feel free to ask any questions here.",
           isDM: false,
           tenantId: tenantObjectId,
         },

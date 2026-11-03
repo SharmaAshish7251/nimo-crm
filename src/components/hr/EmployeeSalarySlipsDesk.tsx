@@ -834,7 +834,7 @@ export function EmployeeSalarySlipsDesk() {
                       N
                     </span>
                     <h1 className="text-base sm:text-lg font-black text-foreground tracking-tight">
-                      NEXACE ENTERPRISES
+                      NIMO ENTERPRISES
                     </h1>
                   </div>
                   <p className="text-[10px] text-muted-foreground">

@@ -49,7 +49,7 @@ function getLiveTransporter(): nodemailer.Transporter | null {
 export async function sendEmail({ to, subject, text, html, attachments }: SendMailOptions) {
   const user = process.env.SMTP_USER?.trim();
   const rawFrom = process.env.SMTP_FROM?.trim()?.replace(/^["']|["']$/g, "");
-  const from = rawFrom || (user ? `NexAce CRM <${user}>` : "NexAce CRM <noreply@nexace.com>");
+  const from = rawFrom || (user ? `NIMO-CRM <${user}>` : "NIMO-CRM <noreply@nimo-crm.com>");
   const isProduction = process.env.NODE_ENV === "production";
 
   const liveTransporter = getLiveTransporter();
@@ -97,7 +97,7 @@ export async function sendEmail({ to, subject, text, html, attachments }: SendMa
     });
 
     const info = await transporter.sendMail({
-      from: '"NexAce CRM Dev" <noreply@nexace.com>',
+      from: '"NIMO-CRM Dev" <noreply@nimo-crm.com>',
       to: to.toLowerCase().trim(),
       subject: `[DEV] ${subject}`,
       text,

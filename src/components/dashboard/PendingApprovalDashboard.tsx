@@ -171,7 +171,7 @@ export function PendingApprovalDashboard({ user }: { user: any }) {
             </div>
             <div className="flex justify-between py-1.5">
               <span className="text-muted-foreground font-medium">Workspace Organization</span>
-              <span className="font-medium text-foreground">{user?.tenantId?.name || "NexAce Workspace"}</span>
+              <span className="font-medium text-foreground">{user?.tenantId?.name || "NIMO Workspace"}</span>
             </div>
           </div>
         </Card>

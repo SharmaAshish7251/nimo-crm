@@ -897,9 +897,9 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
     endDate: initialEnd,
     period: `${initialStart} to ${initialEnd}`,
     description: generateDefaultDescription(user?.role, user?.department, initialStart, initialEnd),
-    billedToName: user?.tenantId?.name || "NexAce Technologies CRM",
+    billedToName: user?.tenantId?.name || "NIMO Technologies CRM",
     billedToAddress: "Headquarters - 100 Innovation Way, Suite 400",
-    billedToEmail: user?.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nexace.com",
+    billedToEmail: user?.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nimo-crm.com",
     notes: generateDefaultNotes(initialStart, initialEnd),
   });
 
@@ -991,7 +991,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
     const ws = XLSX.utils.json_to_sheet(sampleData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Invoice_Timesheet");
-    XLSX.writeFile(wb, "NexAce_Invoice_Timesheet_Template.xlsx");
+    XLSX.writeFile(wb, "NIMO_Invoice_Timesheet_Template.xlsx");
     showToast("Sample Excel template downloaded successfully!", "success");
   };
 
@@ -1177,9 +1177,9 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
     autoCalculateLop: false,
     allowances: [] as CustomSalaryItem[],
     deductions: [] as CustomSalaryItem[],
-    billedToName: user?.tenantId?.name || "NexAce Technologies CRM",
+    billedToName: user?.tenantId?.name || "NIMO Technologies CRM",
     billedToAddress: "Headquarters - 100 Innovation Way, Suite 400",
-    billedToEmail: user?.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nexace.com",
+    billedToEmail: user?.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nimo-crm.com",
     bankName: user?.bankDetails?.bankName || "",
     accountNo: user?.bankDetails?.accountNo || "",
     ifscCode: user?.bankDetails?.ifscCode || "",
@@ -1624,7 +1624,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
     if (user) {
       const start = toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
       const end = toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0));
-      const companyName = user.tenantId?.name || "NexAce Technologies CRM";
+      const companyName = user.tenantId?.name || "NIMO Technologies CRM";
 
       // Automatically determine generator type based on employmentType
       const empType = (user.employmentType || "").toLowerCase();
@@ -1637,7 +1637,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
         employeeName: user.name || prev.employeeName || "",
         role: user.role || prev.role || "Employee",
         billedToName: companyName,
-        billedToEmail: user.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nexace.com",
+        billedToEmail: user.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nimo-crm.com",
         description: generateDefaultDescription(user.role, user.department, start, end),
         notes: generateDefaultNotes(start, end),
       }));
@@ -1655,7 +1655,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
         ifscCode: user.bankDetails?.ifscCode || prev.ifscCode || "",
         upiId: user.bankDetails?.upiId || prev.upiId || "",
         billedToName: companyName,
-        billedToEmail: user.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nexace.com",
+        billedToEmail: user.tenantId?.slug ? `finance@${user.tenantId.slug}.com` : "finance@nimo-crm.com",
       }));
 
       // 3. Fetch latest saved company profile details (address, official email, currency)
@@ -1953,7 +1953,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
           invoiceDate: date,
           dueDate: dueDateVal,
           customerNo: isDraft ? undefined : invoiceToPrint.customerNo,
-          businessName: fromName || "NexAce IT Team",
+          businessName: fromName || "NIMO IT Team",
           businessAddress: fromAddress,
           businessEmail: fromEmail,
           billedToName: toName || "Client",
@@ -2299,7 +2299,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
           businessName: salaryFormData.employeeName || "Employee",
           businessAddress: `${salaryFormData.role} • ${salaryFormData.department} (Permanent Staff)`,
           businessEmail: user?.email || "",
-          billedToName: salaryFormData.billedToName || "NexAce Technologies",
+          billedToName: salaryFormData.billedToName || "NIMO Technologies",
           billedToAddress: salaryFormData.billedToAddress,
           billedToEmail: salaryFormData.billedToEmail,
           items,
@@ -4313,7 +4313,7 @@ export function SelfServiceInvoiceTab({ showToast }: SelfServiceInvoiceTabProps)
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-foreground truncate group-hover:text-primary transition-colors">
-                            {inv.billedToName || "NexAce Technologies"}
+                            {inv.billedToName || "NIMO Technologies"}
                           </p>
                           <p className="text-[10px] text-muted-foreground truncate">
                             {inv.customerNo ? `Client #${inv.customerNo}` : "Corporate Billing"}

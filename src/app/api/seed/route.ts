@@ -194,7 +194,7 @@ export async function GET(request: Request) {
 
     // 7. Seed Projects
     const projCrm = await Project.create({
-      name: "NexAce CRM Implementation",
+      name: "NIMO-CRM Implementation",
       description: "Implementing core unified Multi-tenant workspace features.",
       status: "In Progress",
       members: [ceoId, engManagerId, designManagerId, davidId, elenaId, chloeId],
@@ -360,7 +360,7 @@ export async function GET(request: Request) {
     await TimeEntry.create([
       {
         userId: davidId,
-        project: "NexAce CRM Implementation",
+        project: "NIMO-CRM Implementation",
         taskName: "API endpoints CRUD handlers",
         hours: 8,
         date: monDate,
@@ -371,7 +371,7 @@ export async function GET(request: Request) {
       },
       {
         userId: elenaId,
-        project: "NexAce CRM Implementation",
+        project: "NIMO-CRM Implementation",
         taskName: "HTML5 drag triggers",
         hours: 6,
         date: tueDate,

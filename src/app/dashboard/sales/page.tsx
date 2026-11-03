@@ -354,7 +354,7 @@ export default function SalesWorkdeskPage() {
                   onChange={e => setSalesFormData(p => ({ ...p, venture: e.target.value }))}
                   className="w-full h-9 rounded-md border border-input bg-background text-sm px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                 >
-                  {["Ace Consultancys", "NexAce Tech", "Ziqsy", "Other"].map(v => (
+                  {["Ace Consultancys", "NIMO Tech", "Ziqsy", "Other"].map(v => (
                     <option key={v} value={v}>{v}</option>
                   ))}
                 </select>

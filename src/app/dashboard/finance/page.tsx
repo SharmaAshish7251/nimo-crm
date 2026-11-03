@@ -86,7 +86,7 @@ function FinancePageContent() {
   const [savedUpiIds, setSavedUpiIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      return JSON.parse(localStorage.getItem("nexace_upi_ids") || "[]");
+      return JSON.parse(localStorage.getItem("nimo_upi_ids") || "[]");
     } catch {
       return [];
     }
@@ -365,7 +365,7 @@ function FinancePageContent() {
         const updated = Array.from(new Set([...toSave, ...savedUpiIds])).slice(0, 10);
         setSavedUpiIds(updated);
         try {
-          localStorage.setItem("nexace_upi_ids", JSON.stringify(updated));
+          localStorage.setItem("nimo_upi_ids", JSON.stringify(updated));
         } catch (e) {
           console.error("Failed to save UPI ID to localStorage:", e);
         }
@@ -1067,7 +1067,7 @@ function FinancePageContent() {
                                   const filtered = savedUpiIds.filter((id) => id !== savedId);
                                   setSavedUpiIds(filtered);
                                   try {
-                                    localStorage.setItem("nexace_upi_ids", JSON.stringify(filtered));
+                                    localStorage.setItem("nimo_upi_ids", JSON.stringify(filtered));
                                   } catch {}
                                 }}
                                 className="text-muted-foreground hover:text-rose-500 text-[9px] ml-0.5 cursor-pointer"
@@ -1085,7 +1085,7 @@ function FinancePageContent() {
                   {toUpiId.trim() && (() => {
                     const paymentModalInvoice = invoices.find((i) => i._id === paymentModal.invoiceId);
                     const effectivePayAmount = paymentModalInvoice ? Number(paymentModalInvoice.amount || 0) : 0;
-                    const payeeDisplayName = paymentModalInvoice ? (paymentModalInvoice.client || "NexAce Payee") : "NexAce Payee";
+                    const payeeDisplayName = paymentModalInvoice ? (paymentModalInvoice.client || "NIMO Payee") : "NIMO Payee";
                     const upiPayUrl = `upi://pay?pa=${encodeURIComponent(toUpiId.trim())}&pn=${encodeURIComponent(payeeDisplayName)}&am=${encodeURIComponent(effectivePayAmount > 0 ? effectivePayAmount : "")}&cu=INR&tn=${encodeURIComponent(paymentModal.invoiceNo || "Invoice Payout")}`;
                     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayUrl)}`;
 
@@ -1434,7 +1434,7 @@ function FinancePageContent() {
                 <div className="space-y-1">
                   <label className={labelCls}>Venture</label>
                   <select value={dealFormData.venture} onChange={e => setDealFormData(p => ({ ...p, venture: e.target.value }))} className="w-full h-9 rounded-md border border-input bg-background text-sm px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer">
-                    {["Ace Consultancys", "NexAce Tech"].map(v => <option key={v} value={v}>{v}</option>)}
+                    {["Ace Consultancys", "NIMO Tech"].map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </div>
               </div>

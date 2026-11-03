@@ -1747,7 +1747,7 @@ export function UserManagementTab() {
                     <label className="text-xs text-muted-foreground font-medium block mb-1">Email Address</label>
                     <Input
                       type="email"
-                      placeholder="rahul@nexace.com"
+                      placeholder="rahul@nimo-crm.com"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       required

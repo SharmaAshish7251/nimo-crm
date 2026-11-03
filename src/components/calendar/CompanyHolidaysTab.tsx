@@ -397,7 +397,7 @@ export function CompanyHolidaysTab({
     const icsLines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//NexAce CRM//Company Holidays//EN",
+      "PRODID:-//NIMO-CRM//Company Holidays//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
     ];
@@ -405,7 +405,7 @@ export function CompanyHolidaysTab({
     holidays.forEach((h) => {
       const hDate = new Date(h.date);
       const nextDay = new Date(hDate.getTime() + 24 * 60 * 60 * 1000);
-      const uid = `holiday_${h._id}@nexace.crm`;
+      const uid = `holiday_${h._id}@nimo-crm.com`;
       const title = (h.title || "Company Holiday").replace(/[,;\\]/g, " ");
       const desc = [h.type ? `[${h.type}]` : null, h.description].filter(Boolean).join(" - ").replace(/[,;\\]/g, " ");
 

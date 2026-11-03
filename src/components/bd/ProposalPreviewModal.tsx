@@ -421,10 +421,10 @@ export default function ProposalPreviewModal({
                 <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black text-sm">
                   N
                 </div>
-                <span className="font-black text-lg tracking-tight text-foreground">NexAce Technologies</span>
+                <span className="font-black text-lg tracking-tight text-foreground">NIMO Technologies</span>
               </div>
               <p className="text-xs text-muted-foreground">Strategic Consulting & Enterprise Technology</p>
-              <p className="text-xs text-muted-foreground mt-1">proposals@nexace.io · +1 (800) 555-0199</p>
+              <p className="text-xs text-muted-foreground mt-1">proposals@nimo-crm.com · +1 (800) 555-0199</p>
             </div>
 
             <div className="sm:text-right space-y-1">
@@ -603,7 +603,7 @@ export default function ProposalPreviewModal({
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Wire Transfer / ACH Remittance to: <br />
                 <span className="font-medium text-foreground">Silicon Valley Commercial Bank</span><br />
-                Account: NexAce Operations LLC · Routing: 121000358
+                Account: NIMO Operations LLC · Routing: 121000358
               </p>
             </div>
           </div>
@@ -613,7 +613,7 @@ export default function ProposalPreviewModal({
             <div className="space-y-4">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Authorized Signature (Provider)</p>
               <div className="h-14 border-b border-muted-foreground/40 flex items-end pb-1 font-serif italic text-base text-primary">
-                NexAce Business Development
+                NIMO Business Development
               </div>
               <p className="text-[10px] text-muted-foreground">Date: {fmtDate(proposal.issueDate)}</p>
             </div>
@@ -674,7 +674,7 @@ export default function ProposalPreviewModal({
 
           {/* Footer watermark */}
           <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border pt-3">
-            <span>Powered by NexAce Enterprise CRM</span>
+            <span>Powered by NIMO-CRM Enterprise</span>
             <span>Document #{proposal.proposalCode}</span>
           </div>
 

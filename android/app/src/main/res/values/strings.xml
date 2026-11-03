@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">NexAce CRM</string>
-    <string name="title_activity_main">NexAce CRM</string>
-    <string name="package_name">com.nexace.crm</string>
-    <string name="custom_url_scheme">com.nexace.crm</string>
-    <string name="asset_statements">[{\\\"include\\\": \\\"https://nex-ace-crm.vercel.app/.well-known/assetlinks.json\\\"}]</string>
+    <string name="app_name">NIMO-CRM</string>
+    <string name="title_activity_main">NIMO-CRM</string>
+    <string name="package_name">com.nimo-crm.com</string>
+    <string name="custom_url_scheme">com.nimo-crm.com</string>
+    <string name="asset_statements">[{\\\"include\\\": \\\"https://nimo-crm.vercel.app/.well-known/assetlinks.json\\\"}]</string>
 </resources>

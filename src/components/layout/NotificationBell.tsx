@@ -145,7 +145,7 @@ export function NotificationBell({ onOpen, className }: NotificationBellProps = 
             let shouldShow = true;
             try {
               if (typeof window !== "undefined") {
-                const key = `nexace_catchup_dismissed_${user?._id || "default"}`;
+                const key = `nimo_catchup_dismissed_${user?._id || "default"}`;
                 const raw = localStorage.getItem(key);
                 if (raw) {
                   const dismissed = JSON.parse(raw);
@@ -207,7 +207,7 @@ export function NotificationBell({ onOpen, className }: NotificationBellProps = 
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        if (localStorage.getItem("nexace_desktop_alert_dismissed") === "true") {
+        if (localStorage.getItem("nimo_desktop_alert_dismissed") === "true") {
           setBannerDismissed(true);
         }
       } catch { /* ignore */ }
@@ -223,7 +223,7 @@ export function NotificationBell({ onOpen, className }: NotificationBellProps = 
     setBannerDismissed(true);
     try {
       if (typeof window !== "undefined") {
-        localStorage.setItem("nexace_desktop_alert_dismissed", "true");
+        localStorage.setItem("nimo_desktop_alert_dismissed", "true");
       }
     } catch { /* ignore */ }
   };
@@ -330,7 +330,7 @@ export function NotificationBell({ onOpen, className }: NotificationBellProps = 
   const recordCatchUpDismissal = (targetNotifs?: NotifItem[], targetCount?: number) => {
     try {
       if (typeof window !== "undefined") {
-        const key = `nexace_catchup_dismissed_${user?._id || "default"}`;
+        const key = `nimo_catchup_dismissed_${user?._id || "default"}`;
         const notifList = targetNotifs !== undefined ? targetNotifs : notifications;
         const latest = notifList[0];
         const record = {

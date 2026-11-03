@@ -364,7 +364,7 @@ export default function DataBackupRestoreTab() {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, `nexace_${target.toLowerCase()}_template.xlsx`);
+    XLSX.writeFile(wb, `nimo_${target.toLowerCase()}_template.xlsx`);
     showToast(`Downloaded sample template for ${target}`);
   };
 
@@ -504,7 +504,7 @@ export default function DataBackupRestoreTab() {
                     <i className="fa-solid fa-box-archive text-teal-600" /> Full Workspace Database Snapshot
                   </CardTitle>
                   <CardDescription className="text-xs mt-1">
-                    Export all collections into an encrypted, SHA-256 checksummed portable database archive (<code className="text-xs bg-muted px-1.5 py-0.5 rounded">.nexace.json</code>).
+                    Export all collections into an encrypted, SHA-256 checksummed portable database archive (<code className="text-xs bg-muted px-1.5 py-0.5 rounded">.nimo.json</code>).
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -588,7 +588,7 @@ export default function DataBackupRestoreTab() {
                     </>
                   ) : (
                     <>
-                      <i className="fa-solid fa-download text-xs" /> Download Full Workspace Backup (.nexace.json)
+                      <i className="fa-solid fa-download text-xs" /> Download Full Workspace Backup (.nimo.json)
                     </>
                   )}
                 </Button>
@@ -638,7 +638,7 @@ export default function DataBackupRestoreTab() {
                 <i className="fa-solid fa-rotate-left text-amber-500" /> Database File Restore & Disaster Recovery
               </CardTitle>
               <CardDescription className="text-xs">
-                Upload a verified <code className="text-xs bg-muted px-1.5 py-0.5 rounded">.nexace.json</code> database backup file to restore records into this workspace.
+                Upload a verified <code className="text-xs bg-muted px-1.5 py-0.5 rounded">.nimo.json</code> database backup file to restore records into this workspace.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -651,17 +651,17 @@ export default function DataBackupRestoreTab() {
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  accept=".json,.nexace.json"
+                  accept=".json,.nimo.json,.nexace.json"
                   className="hidden"
                 />
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto text-xl">
                   <i className="fa-solid fa-cloud-arrow-up" />
                 </div>
                 <div className="text-xs font-semibold text-foreground">
-                  {restoreFile ? restoreFile.name : "Click or drag & drop your database backup archive (.nexace.json)"}
+                  {restoreFile ? restoreFile.name : "Click or drag & drop your database backup archive (.nimo.json)"}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Supports JSON backup packages exported from any NexAce workspace.
+                  Supports JSON backup packages exported from any NIMO-CRM workspace.
                 </p>
                 {restoreFile && (
                   <Badge variant="outline" className="mt-2 text-[10px] font-mono border-primary/30 text-primary">

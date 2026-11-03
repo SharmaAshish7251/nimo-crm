@@ -107,7 +107,7 @@ export function NetworkOfflineModal() {
               No Internet Connection
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-4 px-2">
-              NexAce CRM requires an active internet connection to communicate with your workspace.
+              NIMO-CRM requires an active internet connection to communicate with your workspace.
             </p>
 
             {/* Diagnostics Status Badge */}
@@ -180,7 +180,7 @@ export function NetworkOfflineModal() {
             {isNative && (
               <div className="mt-4 pt-3 border-t border-slate-800/60 w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-500">
                 <i className="fa-solid fa-mobile-screen text-[10px]" />
-                <span>NexAce Mobile Workspace</span>
+                <span>NIMO Mobile Workspace</span>
               </div>
             )}
           </div>

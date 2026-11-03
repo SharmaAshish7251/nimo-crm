@@ -1,5 +1,5 @@
 /**
- * Shared role constants for the NexAce CRM platform.
+ * Shared role constants for the NIMO-CRM platform.
  * Use these constants everywhere instead of raw string literals.
  */
 

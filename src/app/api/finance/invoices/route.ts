@@ -68,7 +68,7 @@ export async function GET() {
         if (
           payeeName &&
           payeeName !== "ace consultancys" &&
-          payeeName !== "nex ace" &&
+          payeeName !== "nimo" &&
           payeeName !== "unknown employee" &&
           uName === payeeName
         ) {
@@ -147,7 +147,7 @@ export async function GET() {
         taxRate: inv.taxRate || 0,
         taxAmount: inv.taxAmount || 0,
         total: inv.total || 0,
-        billedToName: inv.billedToName || "NexAce Technologies",
+        billedToName: inv.billedToName || "NIMO Technologies",
         billedToAddress: inv.billedToAddress,
         billedToEmail: inv.billedToEmail,
         businessName: inv.businessName || "Unknown Employee",

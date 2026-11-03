@@ -40,7 +40,7 @@ export function OrgChartNode({ node, onReassign, isAdmin, onSelectMember }: OrgC
   const handleDragStart = (e: React.DragEvent) => {
     try {
       e.dataTransfer.setData("text/plain", node._id);
-      e.dataTransfer.setData("application/x-nexace-employee-id", node._id);
+      e.dataTransfer.setData("application/x-nimo-employee-id", node._id);
     } catch {
       // Fallback
     }
@@ -96,7 +96,7 @@ export function OrgChartNode({ node, onReassign, isAdmin, onSelectMember }: OrgC
     let draggedId = "";
     try {
       draggedId =
-        e.dataTransfer.getData("application/x-nexace-employee-id") ||
+        e.dataTransfer.getData("application/x-nimo-employee-id") ||
         e.dataTransfer.getData("text/plain") ||
         e.dataTransfer.getData("text");
     } catch {

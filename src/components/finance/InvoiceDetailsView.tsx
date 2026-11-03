@@ -280,8 +280,8 @@ export function InvoiceDetailsView({
     Boolean((invoice as any).businessSubtitle && (invoice as any).businessSubtitle.toUpperCase().includes("EMPLOYEE"));
 
   const signatoryEntity = isEmployeeInvoice
-    ? (invoice.billedToName || "Nex Ace")
-    : (invoice.businessName || "NexAce Technologies");
+    ? (invoice.billedToName || "NIMO")
+    : (invoice.businessName || "NIMO Technologies");
 
   const displaySignature = isEmployeeInvoice
     ? companySignatureUrl
@@ -306,9 +306,9 @@ export function InvoiceDetailsView({
   };
 
   const formatSignatoryName = (raw: string) => {
-    if (!raw) return "NexAce";
-    const first = raw.trim().split(" ")[0] || "NexAce";
-    if (first.toUpperCase() === "NEXACE") return "NexAce";
+    if (!raw) return "NIMO";
+    const first = raw.trim().split(" ")[0] || "NIMO";
+    if (first.toUpperCase() === "NEXACE") return "NIMO";
     if (first === first.toUpperCase()) {
       return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
     }
@@ -779,7 +779,7 @@ export function InvoiceDetailsView({
 
           <!-- Micro Footer -->
           <div class="micro-footer">
-            <span>Official Commercial Document • NexAce Financial Desk</span>
+            <span>Official Commercial Document • NIMO-CRM Financial Desk</span>
             <span>Electronic Document • Legally valid without physical seal</span>
           </div>
         </div>
@@ -809,7 +809,7 @@ export function InvoiceDetailsView({
             invoiceDate: invoice.invoiceDate,
             dueDate: invoice.dueDate,
             customerNo: invoice.customerNo,
-            businessName: invoice.businessName || "NexAce IT Team",
+            businessName: invoice.businessName || "NIMO IT Team",
             businessSubtitle: (invoice as any).businessSubtitle || (isEmployeeInvoice ? "Employee • Engineering (Permanent Staff)" : undefined),
             businessAddress: invoice.businessAddress,
             businessEmail: invoice.businessEmail,
@@ -846,7 +846,7 @@ export function InvoiceDetailsView({
             invoiceDate: invoice.invoiceDate,
             dueDate: invoice.dueDate,
             customerNo: invoice.customerNo,
-            businessName: invoice.businessName || "NexAce IT Team",
+            businessName: invoice.businessName || "NIMO IT Team",
             businessSubtitle: (invoice as any).businessSubtitle || (isEmployeeInvoice ? "Employee • Engineering (Permanent Staff)" : undefined),
             businessAddress: invoice.businessAddress,
             businessEmail: invoice.businessEmail,
@@ -2282,7 +2282,7 @@ export function InvoiceDetailsView({
 
           {/* ── Micro Footer ── */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-[10px] text-muted-foreground/70 font-medium border-t border-border/40 gap-2">
-            <span>Official Commercial Document • NexAce Financial Desk</span>
+            <span>Official Commercial Document • NIMO-CRM Financial Desk</span>
             <span>Electronic Document • Legally valid without physical seal</span>
           </div>
         </div>

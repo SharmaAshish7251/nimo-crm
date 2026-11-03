@@ -758,7 +758,7 @@ export function CompanyCelebrationsTab({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `nexace-wishes-moderation-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `nimo-wishes-moderation-${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1227,7 +1227,7 @@ export function CompanyCelebrationsTab({
                 🎂 Celebrating on ${MONTH_NAMES[selectedCelebrant.month - 1]} ${selectedCelebrant.day}, 2026 🎉
               </div>
               <p class="citation">
-                “Presented with heartfelt appreciation and congratulations by your colleagues at NexAce. This commemorative keepsake preserves the warm wishes, accolades, and shared memories from your team.”
+                “Presented with heartfelt appreciation and congratulations by your colleagues at NIMO. This commemorative keepsake preserves the warm wishes, accolades, and shared memories from your team.”
               </p>
             </div>
 
@@ -1255,7 +1255,7 @@ export function CompanyCelebrationsTab({
             </div>
 
             <div class="footer-seal">
-              <div class="seal-stamp">★ NEXACE CRM OFFICIAL CELEBRATION MEMENTO ★</div>
+              <div class="seal-stamp">★ NIMO-CRM OFFICIAL CELEBRATION MEMENTO ★</div>
               <div>Issued on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
             </div>
           </div>
@@ -4288,7 +4288,7 @@ export function CompanyCelebrationsTab({
                   </div>
 
                   <p className="text-xs sm:text-sm text-slate-300/90 italic max-w-lg mx-auto leading-relaxed border-y border-amber-500/20 py-3 my-2">
-                    “Presented with sincere appreciation and warmest birthday cheers by your colleagues and team at NexAce. May this milestone year bring you monumental success, vibrant health, and memorable celebrations!”
+                    “Presented with sincere appreciation and warmest birthday cheers by your colleagues and team at NIMO. May this milestone year bring you monumental success, vibrant health, and memorable celebrations!”
                   </p>
                 </div>
 
@@ -4422,7 +4422,7 @@ export function CompanyCelebrationsTab({
                 <div className="pt-3 border-t border-amber-500/20 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-400">
                   <div className="flex items-center gap-1.5 text-amber-300 font-bold uppercase tracking-wider">
                     <i className="fa-solid fa-shield text-amber-400" />
-                    <span>NexAce CRM Verified Celebration Keepsake</span>
+                    <span>NIMO-CRM Verified Celebration Keepsake</span>
                   </div>
                   <span>Issued on {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                 </div>

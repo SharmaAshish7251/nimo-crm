@@ -46,7 +46,7 @@ export function Preloader({
             <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
           </span>
         </p>
-        <p className="text-xs text-muted-foreground font-mono">NexAce Unified CRM</p>
+        <p className="text-xs text-muted-foreground font-mono">NIMO-CRM</p>
       </div>
     </div>
   );

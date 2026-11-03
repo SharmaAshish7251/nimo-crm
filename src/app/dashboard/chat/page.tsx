@@ -80,7 +80,7 @@ const INITIAL_MAILS: MailItem[] = [
     email: "sarah@starlight.io",
     subject: "Sprint Deliverable Feedback & Sign-off",
     preview: "The new UI dashboard looks fantastic! We have signed off on the milestone...",
-    body: "Hi NexAce Team,\n\nThe new UI dashboard looks fantastic! We have signed off on the milestone in your client portal. Thanks for the quick turnaround.\n\nCheers,\nSarah",
+    body: "Hi NIMO Team,\n\nThe new UI dashboard looks fantastic! We have signed off on the milestone in your client portal. Thanks for the quick turnaround.\n\nCheers,\nSarah",
     date: "Yesterday",
     folder: "inbox",
     read: true,

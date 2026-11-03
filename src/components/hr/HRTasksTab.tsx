@@ -655,7 +655,7 @@ export function HRTasksTab() {
                 onDrop={async (e) => {
                   e.preventDefault();
                   setDragOverCol(null);
-                  const taskId = e.dataTransfer.getData("nexace/task-id");
+                  const taskId = e.dataTransfer.getData("nimo/task-id");
                   if (taskId) {
                     setTasks((prev) =>
                       prev.map((t) => (t._id === taskId ? { ...t, status: col } : t))
@@ -721,7 +721,7 @@ export function HRTasksTab() {
                           key={t._id}
                           draggable
                           onDragStart={(e) => {
-                            e.dataTransfer.setData("nexace/task-id", t._id);
+                            e.dataTransfer.setData("nimo/task-id", t._id);
                             e.dataTransfer.effectAllowed = "move";
                             setDraggedTaskId(t._id);
                           }}

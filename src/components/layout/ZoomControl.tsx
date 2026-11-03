@@ -7,7 +7,7 @@ export function ZoomControl() {
   const [zoomLevel, setZoomLevel] = useState(100);
 
   useEffect(() => {
-    const saved = localStorage.getItem("nexace_dashboard_zoom");
+    const saved = localStorage.getItem("nimo_dashboard_zoom");
     if (saved) {
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed) && parsed >= 70 && parsed <= 120) {
@@ -21,7 +21,7 @@ export function ZoomControl() {
     const clamped = Math.min(Math.max(newZoom, 70), 120);
     setZoomLevel(clamped);
     document.body.style.zoom = `${clamped}%`;
-    localStorage.setItem("nexace_dashboard_zoom", String(clamped));
+    localStorage.setItem("nimo_dashboard_zoom", String(clamped));
   };
 
   return (

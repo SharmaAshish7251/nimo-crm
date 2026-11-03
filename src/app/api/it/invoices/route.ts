@@ -128,8 +128,8 @@ export async function GET() {
       businessName: inv.businessName || inv.client || "Employee",
       businessEmail: inv.businessEmail || "",
       businessAddress: "Employee / Internal Team",
-      billedToName: inv.billedToName || inv.venture || "NexAce Technologies",
-      billedToEmail: "finance@nexace.com",
+      billedToName: inv.billedToName || inv.venture || "NIMO Technologies",
+      billedToEmail: "finance@nimo-crm.com",
       items: inv.lineItems || [],
       subtotal: inv.amount || 0,
       taxRate: 0,
@@ -382,8 +382,8 @@ export async function POST(request: Request) {
       if (submitterEmail) {
         await sendEmail({
           to: submitterEmail,
-          subject: `[NexAce CRM] Invoice ${created.invoiceNo} Submitted to HR for Review`,
-          text: `Hello ${submitterDoc?.name || session.userName},\n\nYour invoice ${created.invoiceNo} for ${billedToName.trim()} (${currency || "INR"} ${Number(total || 0).toLocaleString()}) has been submitted and is currently pending timesheet & attendance verification by HR.\n\nOnce HR verifies your hours, it will automatically advance to Admin for payment.\n\nLog in to your NexAce dashboard to track its status.`,
+          subject: `[NIMO-CRM] Invoice ${created.invoiceNo} Submitted to HR for Review`,
+          text: `Hello ${submitterDoc?.name || session.userName},\n\nYour invoice ${created.invoiceNo} for ${billedToName.trim()} (${currency || "INR"} ${Number(total || 0).toLocaleString()}) has been submitted and is currently pending timesheet & attendance verification by HR.\n\nOnce HR verifies your hours, it will automatically advance to Admin for payment.\n\nLog in to your NIMO dashboard to track its status.`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
               <h2 style="color: #4f46e5; margin-top: 0;">✦ Invoice Submitted to HR</h2>
@@ -396,7 +396,7 @@ export async function POST(request: Request) {
                 <p style="margin: 4px 0; font-size: 14px;"><strong>Current Stage:</strong> <span style="color: #f59e0b; font-weight: bold;">1. Pending HR Review</span></p>
               </div>
               <p style="color: #475569; font-size: 14px;">Once HR approves your hours, your invoice will automatically advance to Admin for payment processing.</p>
-              <p style="color: #94a3b8; font-size: 12px;">Log in to <a href="/dashboard/settings?tab=invoice" style="color: #4f46e5;">NexAce CRM</a> to track live progress.</p>
+              <p style="color: #94a3b8; font-size: 12px;">Log in to <a href="/dashboard/settings?tab=invoice" style="color: #4f46e5;">NIMO-CRM</a> to track live progress.</p>
             </div>
           `,
         });

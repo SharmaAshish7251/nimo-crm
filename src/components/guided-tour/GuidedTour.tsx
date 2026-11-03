@@ -894,7 +894,7 @@ export function GuidedTour({ isOpen, onClose, role }: GuidedTourProps) {
 
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("nexace_tour_sound") !== "false";
+      return localStorage.getItem("nimo_tour_sound") !== "false";
     }
     return true;
   });
@@ -946,7 +946,7 @@ export function GuidedTour({ isOpen, onClose, role }: GuidedTourProps) {
     setSoundEnabled((prev) => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        localStorage.setItem("nexace_tour_sound", String(next));
+        localStorage.setItem("nimo_tour_sound", String(next));
       }
       return next;
     });
@@ -1060,7 +1060,7 @@ export function GuidedTour({ isOpen, onClose, role }: GuidedTourProps) {
     setIsCompleted(true);
     playSound("finish");
     if (typeof window !== "undefined") {
-      localStorage.setItem("nexace_tour_completed", "true");
+      localStorage.setItem("nimo_tour_completed", "true");
     }
   };
 
@@ -1069,7 +1069,7 @@ export function GuidedTour({ isOpen, onClose, role }: GuidedTourProps) {
     setIsCompleted(false);
     setIsMinimized(false);
     if (typeof window !== "undefined") {
-      localStorage.setItem("nexace_tour_completed", "true");
+      localStorage.setItem("nimo_tour_completed", "true");
     }
     onClose();
   };

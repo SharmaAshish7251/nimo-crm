@@ -6,7 +6,7 @@
     ],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.nexace.crm",
+      "package_name": "com.nimo-crm.com",
       "sha256_cert_fingerprints": [
         "4D:8E:C9:0D:5D:78:18:F8:A0:7F:88:93:0D:AB:0E:D9:3C:BA:10:CF:EF:B2:28:C4:CA:C8:41:7A:21:63:C3:92"
       ]

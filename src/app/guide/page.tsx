@@ -901,19 +901,19 @@ const FAQ_ITEMS = [
   },
   {
     q: "What roles are available and what can each one do?",
-    a: "NexAce CRM has 5 roles: Admin (full workspace control), OPS / Sub Admin (client delivery & IT assets), Manager (team oversight & approvals), HR (people operations & onboarding), and Employee (daily tasks, timesheets, referrals). Admins can customize exactly which modules each role can access via Settings → Permissions.",
+    a: "NIMO-CRM has 5 roles: Admin (full workspace control), OPS / Sub Admin (client delivery & IT assets), Manager (team oversight & approvals), HR (people operations & onboarding), and Employee (daily tasks, timesheets, referrals). Admins can customize exactly which modules each role can access via Settings → Permissions.",
   },
   {
     q: "How do timesheets get approved?",
     a: "Employees submit timesheets via Calendar → Timesheets → 'Submit for Approval'. Their manager sees the pending submission under 'Pending Team Submissions' and clicks Approve or Reject with optional feedback. Approved timesheets are locked and feed into payroll & billing calculations.",
   },
   {
-    q: "Can I export data from NexAce CRM?",
+    q: "Can I export data from NIMO-CRM?",
     a: "Yes — multiple modules support data export. Attendance logs export as CSV from Calendar → Attendance. Leave records support CSV, JSON, and formatted Text export. Invoices can be printed or downloaded as PDF from the IT Portal. Analytics data is also downloadable.",
   },
   {
     q: "Is my company's data isolated from other organizations?",
-    a: "Absolutely. NexAce CRM uses enterprise-grade multi-tenant architecture where each company workspace has its own isolated database partition. Your employees, projects, messages, files, and configurations are never visible to any other tenant organization.",
+    a: "Absolutely. NIMO-CRM uses enterprise-grade multi-tenant architecture where each company workspace has its own isolated database partition. Your employees, projects, messages, files, and configurations are never visible to any other tenant organization.",
   },
   {
     q: "How do I give an employee access to a tool (GitHub, AWS, etc.)?",
@@ -1158,7 +1158,7 @@ export default function GuidePage() {
               <i className="fa-solid fa-layer-group" />
             </span>
             <span className={styles.logoText}>
-              NexAce <span className={styles.logoCRM}>CRM</span>
+              NIMO <span className={styles.logoCRM}>CRM</span>
             </span>
           </Link>
           <span className={styles.guideBadge}>
@@ -1209,13 +1209,13 @@ export default function GuidePage() {
           Full Operational User Manual &amp; Feature Guide
         </div>
         <h1 className={styles.title}>
-          Master <span className={styles.titleHighlight}>NexAce CRM</span>
+          Master <span className={styles.titleHighlight}>NIMO-CRM</span>
           <br />
           in Minutes
         </h1>
         <p className={styles.subtitle}>
           Step-by-step operational workflows, button-by-button actions, and live UI screenshots
-          for every tool and module in NexAce CRM.
+          for every tool and module in NIMO-CRM.
         </p>
 
         {/* Live Tour CTA Strip */}
@@ -1418,7 +1418,7 @@ export default function GuidePage() {
               <span className={styles.quickStartLabel}>
                 <i className="fa-solid fa-flag" /> Getting Started
               </span>
-              <h2 className={styles.quickStartTitle}>New to NexAce CRM?</h2>
+              <h2 className={styles.quickStartTitle}>New to NIMO-CRM?</h2>
               <p className={styles.quickStartSubtitle}>
                 Follow these 4 steps to get your team fully operational in under 10 minutes.
               </p>
@@ -1700,7 +1700,7 @@ export default function GuidePage() {
               </span>
               <h2 className={styles.sectionTitle}>Common Questions</h2>
               <p className={styles.sectionSubtitle}>
-                Quick answers to the most common questions about using NexAce CRM.
+                Quick answers to the most common questions about using NIMO-CRM.
               </p>
             </div>
             <div className={styles.faqList}>
@@ -1766,10 +1766,10 @@ export default function GuidePage() {
       {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerLogo}>
-          <i className="fa-solid fa-layer-group" /> NexAce CRM
+          <i className="fa-solid fa-layer-group" /> NIMO-CRM
         </div>
         <span className={styles.footerCopy}>
-          © {new Date().getFullYear()} NexAce CRM · All rights reserved
+          © {new Date().getFullYear()} NIMO-CRM · All rights reserved
         </span>
         <div className={styles.footerLinks}>
           <Link href="/" className={styles.footerLink}>Home</Link>

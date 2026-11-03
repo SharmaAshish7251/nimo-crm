@@ -290,7 +290,7 @@ export function generateInvoicePdfDoc(invoice: InvoicePdfData): jsPDF {
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(15, 23, 42);
-  const toName = invoice.billedToName || "Nex Ace";
+  const toName = invoice.billedToName || "NIMO";
   doc.text(toName, col3X, infoY + 5.5);
 
   doc.setFontSize(7);
@@ -527,8 +527,8 @@ export function generateInvoicePdfDoc(invoice: InvoicePdfData): jsPDF {
 
   // ── Dual Sign-Off Grid (Signatures BEFORE Terms & Notes) ──────────────────
   const companySignatoryName = isEmployeeInvoice
-    ? (invoice.billedToName || "Nex Ace")
-    : (invoice.businessName || "NexAce Technologies");
+    ? (invoice.billedToName || "NIMO")
+    : (invoice.businessName || "NIMO Technologies");
 
   const effectiveOrgSig = invoice.orgSignatureUrl || (!isEmployeeInvoice ? invoice.signatureUrl : undefined);
   const employeeClaimSig = isEmployeeInvoice ? (invoice.employeeSignatureUrl || invoice.signatureUrl) : undefined;
@@ -634,7 +634,7 @@ export function generateInvoicePdfDoc(invoice: InvoicePdfData): jsPDF {
     doc.setFont("times", "italic");
     doc.setFontSize(26);
     const sigText = companySignatoryName.split(" ")[0];
-    const cleanSigText = sigText && sigText.toUpperCase() === "NEXACE" ? "NexAce" : sigText;
+    const cleanSigText = sigText && sigText.toUpperCase() === "NEXACE" ? "NIMO" : sigText;
     doc.text(cleanSigText, rightSigX - 2, sigY + 9.5, { align: "right" });
   }
 
@@ -837,7 +837,7 @@ export function generateInvoicePdfDoc(invoice: InvoicePdfData): jsPDF {
   doc.setFontSize(6.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(148, 163, 184); // #94a3b8 (muted-foreground/70)
-  doc.text("Official Commercial Document • NexAce Financial Desk", leftX, microFooterY);
+  doc.text("Official Commercial Document • NIMO-CRM Financial Desk", leftX, microFooterY);
   doc.text("Electronic Document • Legally valid without physical seal", rightX, microFooterY, { align: "right" });
 
   return doc;

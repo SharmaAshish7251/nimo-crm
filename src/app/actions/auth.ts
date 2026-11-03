@@ -161,8 +161,8 @@ export async function registerAction(state: FormState | undefined, formData: For
     }
     if (!tenant) {
       tenant = await Tenant.create({
-        name: companyName || "NexAce CRM",
-        slug: companySlug?.toLowerCase() || "nexace"
+        name: companyName || "NIMO-CRM",
+        slug: companySlug?.toLowerCase() || "nimo"
       });
     }
 
@@ -211,7 +211,7 @@ export async function registerAction(state: FormState | undefined, formData: For
         try {
           await sendEmail({
             to: recipient.email,
-            subject: `[NexAce CRM] New Employee Approval Request: ${adminName}`,
+            subject: `[NIMO-CRM] New Employee Approval Request: ${adminName}`,
             text: `New account awaiting approval: ${adminName} (@${usernameRaw}, ${adminEmail}). Please review and approve in OPS Portal > User Accounts -- Pending Employee Approvals.`,
             html: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
@@ -447,18 +447,18 @@ export async function forgotPasswordAction(state: FormState | undefined, formDat
     // Send reset email via Nodemailer
     const mailResult = await sendEmail({
       to: email,
-      subject: "[NexAce CRM] Reset Your Password",
+      subject: "[NIMO-CRM] Reset Your Password",
       text: `Reset your password: ${resetLink} (Verification Code: ${code})`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 2.5rem 1.5rem; background-color: #f8fafc; color: #1e293b;">
           <div style="max-width: 520px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
             <div style="text-align: center; margin-bottom: 2rem;">
-              <h2 style="color: #4f46e5; margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em;">✦ NexAce CRM</h2>
+              <h2 style="color: #4f46e5; margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em;">✦ NIMO-CRM</h2>
               <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; font-weight: 500;">Account Security & Password Recovery</p>
             </div>
 
             <p style="font-size: 0.95rem; color: #0f172a; line-height: 1.6; margin-bottom: 0.75rem;">Hello <strong>${user.name}</strong>,</p>
-            <p style="font-size: 0.95rem; color: #334155; line-height: 1.6; margin-bottom: 1.75rem;">We received a request to reset the password for your NexAce CRM account. Click the button below to reset your password directly:</p>
+            <p style="font-size: 0.95rem; color: #334155; line-height: 1.6; margin-bottom: 1.75rem;">We received a request to reset the password for your NIMO-CRM account. Click the button below to reset your password directly:</p>
 
             <div style="text-align: center; margin: 2rem 0;">
               <a href="${resetLink}" target="_blank" style="background-color: #4f46e5; color: #ffffff; padding: 0.9rem 2.25rem; border-radius: 10px; font-weight: 700; font-size: 0.95rem; text-decoration: none; display: inline-block; box-shadow: 0 4px 12px 0 rgba(79, 70, 229, 0.35);">

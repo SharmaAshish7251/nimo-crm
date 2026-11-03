@@ -1511,7 +1511,7 @@ function CalendarPageContent() {
     const icsLines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//NexAce CRM//Calendar Schedule//EN",
+      "PRODID:-//NIMO-CRM//Calendar Schedule//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
     ];
@@ -1523,7 +1523,7 @@ function CalendarPageContent() {
         end = new Date(start.getTime() + 60 * 60 * 1000);
       }
 
-      const uid = `${evt._id || Math.random().toString(36).substring(2)}@nexace.crm`;
+      const uid = `${evt._id || Math.random().toString(36).substring(2)}@nimo-crm.com`;
       const title = (evt.title || "Untitled Event").replace(/[,;\\]/g, " ");
       const desc = (evt.description || "").replace(/[\r\n]+/g, "\\n").replace(/[,;\\]/g, " ");
       const userName = typeof evt.userId === "object" ? evt.userId?.name || "" : "";

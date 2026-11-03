@@ -1935,7 +1935,7 @@ export default function OperationsPage() {
                   <label className="font-semibold text-foreground">Email Address</label>
                   <Input
                     type="email"
-                    placeholder="e.g. employee@nexace.com"
+                    placeholder="e.g. employee@nimo-crm.com"
                     value={hrFormData.email}
                     onChange={(e) => setHrFormData((prev) => ({ ...prev, email: e.target.value }))}
                   />

@@ -45,7 +45,7 @@ export default function SendProposalModal({
       setCcEmail("");
       setSubject(`Proposal #${proposal.proposalCode}: ${proposal.subject}`);
       setMessage(
-        `Dear ${proposal.clientName},\n\nWe are pleased to present our proposal for "${proposal.subject}".\n\nYou can review the complete scope, line-item breakdown, and electronically sign the proposal using our secure client portal:\n\n${publicLink}\n\nTotal Investment: ${proposal.currency} ${Number(proposal.totalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\nPlease let us know if you have any questions or require any adjustments.\n\nBest regards,\nNexAce Business Development Team`
+        `Dear ${proposal.clientName},\n\nWe are pleased to present our proposal for "${proposal.subject}".\n\nYou can review the complete scope, line-item breakdown, and electronically sign the proposal using our secure client portal:\n\n${publicLink}\n\nTotal Investment: ${proposal.currency} ${Number(proposal.totalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\nPlease let us know if you have any questions or require any adjustments.\n\nBest regards,\nNIMO Business Development Team`
       );
       setError(null);
     }

@@ -293,7 +293,7 @@ export default function HrWorkdeskDashboard({
 
     const rows = filteredAndSortedAllocations.map((emp) => [
       `"${emp.employeeName.replace(/"/g, '""')}"`,
-      `"${emp.employeeName.toLowerCase().replace(/\s+/g, "")}@nexace.com"`,
+      `"${emp.employeeName.toLowerCase().replace(/\s+/g, "")}@nimo-crm.com"`,
       `"${emp.role.replace(/"/g, '""')}"`,
       `"${emp.department.replace(/"/g, '""')}"`,
       `"${emp.assignedProject.replace(/"/g, '""')}"`,
@@ -1228,7 +1228,7 @@ export default function HrWorkdeskDashboard({
                       const email =
                         emp.email ||
                         (emp.employeeName
-                          ? `${emp.employeeName.toLowerCase().replace(/\s+/g, "")}@nexace.com`
+                          ? `${emp.employeeName.toLowerCase().replace(/\s+/g, "")}@nimo-crm.com`
                           : "—");
 
                       return (
@@ -1878,7 +1878,7 @@ export default function HrWorkdeskDashboard({
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {viewingEmployee.email ||
-                      `${viewingEmployee.employeeName.toLowerCase().replace(/\s+/g, "")}@nexace.com`}
+                      `${viewingEmployee.employeeName.toLowerCase().replace(/\s+/g, "")}@nimo-crm.com`}
                   </p>
                 </div>
               </div>

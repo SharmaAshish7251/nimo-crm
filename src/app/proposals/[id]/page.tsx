@@ -267,7 +267,7 @@ export default function PublicProposalPage({ params }: { params: Promise<{ id: s
             N
           </div>
           <div>
-            <h2 className="text-sm font-bold text-foreground">NexAce Client Portal</h2>
+            <h2 className="text-sm font-bold text-foreground">NIMO-CRM Client Portal</h2>
             <p className="text-xs text-muted-foreground">Official Business Proposal</p>
           </div>
         </div>
@@ -663,7 +663,7 @@ export default function PublicProposalPage({ params }: { params: Promise<{ id: s
 
             <div className="p-6 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Let the NexAce team know what changes or adjustments you require:
+                Let the NIMO team know what changes or adjustments you require:
               </p>
               <textarea
                 rows={4}

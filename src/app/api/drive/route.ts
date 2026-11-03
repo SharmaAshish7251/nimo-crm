@@ -124,12 +124,12 @@ export async function POST(request: Request) {
     const day = String(now.getDate()).padStart(2, "0");
     const timestamp = now.getTime();
 
-    // Custom File Naming: NexAceCRM_Year_Month_Day_TimeStamp
+    // Custom File Naming: NIMOCRM_Year_Month_Day_TimeStamp
     let savedFileName = fileName;
     let diskFileName = `${timestamp}-${fileName.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
 
     if (folder === "Chat" || folder.toLowerCase().includes("chat") || mimeType.startsWith("image/")) {
-      savedFileName = `NexAceCRM_${year}_${month}_${day}_${timestamp}${ext}`;
+      savedFileName = `NIMOCRM_${year}_${month}_${day}_${timestamp}${ext}`;
       diskFileName = savedFileName;
     }
 

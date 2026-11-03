@@ -138,8 +138,8 @@ export const NativeService = {
       if (Capacitor.getPlatform() === "android") {
         try {
           await PushNotifications.createChannel({
-            id: "nexace_crm_default",
-            name: "NexAce CRM Alerts",
+            id: "nimo_crm_default",
+            name: "NIMO-CRM Alerts",
             description: "General CRM alerts, updates, task assignments, and chat messages",
             importance: 5, // High importance (heads-up banner + sound)
             visibility: 1, // Public on lockscreen
@@ -148,7 +148,7 @@ export const NativeService = {
             lights: true,
             lightColor: "#00c5a0",
           });
-          console.log("[PushNotifications] Android notification channel 'nexace_crm_default' registered");
+          console.log("[PushNotifications] Android notification channel 'nimo_crm_default' registered");
         } catch (channelErr) {
           console.warn("[PushNotifications] Failed to create notification channel:", channelErr);
         }

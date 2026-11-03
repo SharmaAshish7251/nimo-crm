@@ -52,7 +52,7 @@ export function generateAndDownloadPDF(options: PDFReportOptions) {
   const contentWidth = pageWidth - marginX * 2; // 182mm
   let currentY = 12;
 
-  const companyName = "NexAce CRM";
+  const companyName = "NIMO-CRM";
   const tenantTitle = (user.tenantName || "Corporate Workspace").slice(0, 32);
   const empName = (user.name || "Employee").slice(0, 28);
   const empRole = (user.role || "Team Member").slice(0, 20);
@@ -736,6 +736,6 @@ export function generateAndDownloadPDF(options: PDFReportOptions) {
 
   // Direct File Download Trigger
   const sanitizedName = empName.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const fileName = `NexAce_Report_${sanitizedName}_${getISTDateString()}_IST.pdf`;
+  const fileName = `NIMO_Report_${sanitizedName}_${getISTDateString()}_IST.pdf`;
   doc.save(fileName);
 }

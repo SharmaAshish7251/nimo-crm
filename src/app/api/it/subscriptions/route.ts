@@ -88,8 +88,8 @@ async function checkAndNotifyExpiringSubscriptions(tenantObjectId: mongoose.Type
             if (recipient.email) {
               sendEmail({
                 to: recipient.email,
-                subject: `[NexAce IT Alert] Subscription Expiring Soon: ${sub.tool}`,
-                text: `Hello ${recipient.name},\n\nThe subscription for "${sub.tool}" is expiring on ${sub.renewalDate} (${diffDays === 0 ? "Today" : `in ${diffDays} day(s)`}).\n\nLog in to NexAce CRM to renew or review details.`,
+                subject: `[NIMO-CRM IT Alert] Subscription Expiring Soon: ${sub.tool}`,
+                text: `Hello ${recipient.name},\n\nThe subscription for "${sub.tool}" is expiring on ${sub.renewalDate} (${diffDays === 0 ? "Today" : `in ${diffDays} day(s)`}).\n\nLog in to NIMO-CRM to renew or review details.`,
                 html: `
                   <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <h2 style="color: #ea580c; margin-bottom: 8px;">Subscription Expiring Alert</h2>

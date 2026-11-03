@@ -237,7 +237,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
 
   // Saved custom UPI IDs (persisted in localStorage for quick reuse)
   const [savedUpiIds, setSavedUpiIds] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("nexace_upi_ids") || "[]"); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem("nimo_upi_ids") || "[]"); } catch { return []; }
   });
   const [orgLogoUrl, setOrgLogoUrl] = useState<string>("");
   const [orgSignatureUrl, setOrgSignatureUrl] = useState<string>("");
@@ -274,7 +274,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
             businessName: inv.businessName || (isEmp ? (inv.client || "Employee") : (inv.client || inv.venture || "Ace Consultancys")),
             businessAddress: inv.businessAddress || (isEmp ? "Employee / Internal Team" : ""),
             businessEmail: inv.businessEmail || (isEmp ? (inv.customerNo || "") : "") || "",
-            billedToName: inv.billedToName || (isEmp ? (inv.venture || "NexAce Technologies") : (inv.client || "Client")),
+            billedToName: inv.billedToName || (isEmp ? (inv.venture || "NIMO Technologies") : (inv.client || "Client")),
             billedToAddress: inv.billedToAddress || "",
             billedToEmail: inv.billedToEmail || "",
             items: inv.lineItems || inv.items || [{ description: inv.category || "Services", quantity: 1, unitPrice: inv.amount || 0, amount: inv.amount || 0 }],
@@ -541,7 +541,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
         const updated = Array.from(new Set([...toSave, ...savedUpiIds])).slice(0, 10);
         setSavedUpiIds(updated);
         try {
-          localStorage.setItem("nexace_upi_ids", JSON.stringify(updated));
+          localStorage.setItem("nimo_upi_ids", JSON.stringify(updated));
         } catch (e) {
           console.error("Failed to save UPI ID to localStorage:", e);
         }
@@ -724,7 +724,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
           invoiceDate: inv.invoiceDate,
           dueDate: inv.dueDate,
           customerNo: inv.customerNo,
-          businessName: inv.businessName || "NexAce IT Team",
+          businessName: inv.businessName || "NIMO IT Team",
           businessAddress: inv.businessAddress,
           businessEmail: inv.businessEmail,
           billedToName: inv.billedToName || "Client",
@@ -1149,9 +1149,9 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
 
                       {/* Billed To (Entity) — Compact badge */}
                       <td className="py-3 px-3">
-                        {inv.billedToName === "Nex Ace" || inv.billedToName?.startsWith("Nex") ? (
+                        {inv.billedToName === "NIMO" || inv.billedToName?.startsWith("Nex") ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted/60 text-[11px] font-medium text-muted-foreground border border-border/50">
-                            <i className="fa-solid fa-building text-[9px] text-primary" /> Nex Ace
+                            <i className="fa-solid fa-building text-[9px] text-primary" /> NIMO
                           </span>
                         ) : (
                           <div className="min-w-0">
@@ -1947,7 +1947,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
                                 const filtered = savedUpiIds.filter((id) => id !== savedId);
                                 setSavedUpiIds(filtered);
                                 try {
-                                  localStorage.setItem("nexace_upi_ids", JSON.stringify(filtered));
+                                  localStorage.setItem("nimo_upi_ids", JSON.stringify(filtered));
                                 } catch {}
                               }}
                               className="text-muted-foreground hover:text-rose-500 text-[9px] ml-0.5 cursor-pointer"
@@ -1965,7 +1965,7 @@ export function AdminInvoicesTab({ showToast, scope = "internal" }: AdminInvoice
                   {toUpiId.trim() && (() => {
                     const paymentModalInvoice = invoices.find((i) => (i._id || i.id) === paymentModal.invoiceId);
                     const effectivePayAmount = paymentModalInvoice ? Number(paymentModalInvoice.total || 0) : 0;
-                    const payeeDisplayName = paymentModalInvoice ? (paymentModalInvoice.businessName || "NexAce Payee") : "NexAce Payee";
+                    const payeeDisplayName = paymentModalInvoice ? (paymentModalInvoice.businessName || "NIMO Payee") : "NIMO Payee";
                     const upiPayUrl = `upi://pay?pa=${encodeURIComponent(toUpiId.trim())}&pn=${encodeURIComponent(payeeDisplayName)}&am=${encodeURIComponent(effectivePayAmount > 0 ? effectivePayAmount : "")}&cu=INR&tn=${encodeURIComponent(paymentModal.invoiceNo || "Invoice Payout")}`;
                     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayUrl)}`;
 

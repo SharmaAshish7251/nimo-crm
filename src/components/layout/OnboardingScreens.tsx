@@ -104,7 +104,7 @@ export function OnboardingScreens({ isAppLocked = false, isFullScreen = false, o
       return;
     }
     if (!user?._id) return;
-    const key = `nexace_onboarding_completed_${user._id}`;
+    const key = `nimo_onboarding_completed_${user._id}`;
     if (localStorage.getItem(key)) return;
 
     const isNativeApp = NativeService.isNative();
@@ -162,7 +162,7 @@ export function OnboardingScreens({ isAppLocked = false, isFullScreen = false, o
     }
     setIsOpen(false);
     if (user?._id) {
-      localStorage.setItem(`nexace_onboarding_completed_${user._id}`, "true");
+      localStorage.setItem(`nimo_onboarding_completed_${user._id}`, "true");
     }
   }, [user, isAppLocked, onDone]);
 

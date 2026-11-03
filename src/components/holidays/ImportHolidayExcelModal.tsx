@@ -74,7 +74,7 @@ export default function ImportHolidayExcelModal({
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Holidays");
-    XLSX.writeFile(wb, "NexAce_Holiday_Import_Template.xlsx");
+    XLSX.writeFile(wb, "NIMO_Holiday_Import_Template.xlsx");
   };
 
   // 2. Parse uploaded file

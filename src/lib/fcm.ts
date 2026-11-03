@@ -129,7 +129,7 @@ export async function sendFcmPush(
               title: payload.title,
               body: payload.message,
               sound: "default",
-              channel_id: "nexace_crm_default",
+              channel_id: "nimo_crm_default",
             },
           },
           apns: {

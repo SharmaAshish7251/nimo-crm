@@ -561,7 +561,7 @@ export default function BDPortalPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `nexace_proposals_${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `nimo_proposals_${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1275,7 +1275,7 @@ export default function BDPortalPage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `nexace-bd-leads-${scope}-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `nimo-bd-leads-${scope}-${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -3552,7 +3552,7 @@ export default function BDPortalPage() {
                           e.preventDefault();
                           setDragOverColId(null);
                           setDraggedLeadId(null);
-                          const leadId = e.dataTransfer.getData("nexace/lead-id") || draggedLeadId;
+                          const leadId = e.dataTransfer.getData("nimo/lead-id") || draggedLeadId;
                           if (leadId) {
                             await handleDragDropStatus(leadId, col.status);
                           }
@@ -3616,7 +3616,7 @@ export default function BDPortalPage() {
                                   key={lead._id || idx}
                                   draggable
                                   onDragStart={(e) => {
-                                    e.dataTransfer.setData("nexace/lead-id", lead._id || String(idx));
+                                    e.dataTransfer.setData("nimo/lead-id", lead._id || String(idx));
                                     e.dataTransfer.effectAllowed = "move";
                                     setDraggedLeadId(lead._id || String(idx));
                                   }}
@@ -3882,7 +3882,7 @@ export default function BDPortalPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><label className={labelCls}>Deal Owner</label><Input className={inputCls} value={dealFormData.owner} onChange={e => setDealFormData(p => ({ ...p, owner: e.target.value }))} placeholder="e.g. Sara Khan" /></div>
-                <div className="space-y-1"><label className={labelCls}>Venture</label><select value={dealFormData.venture} onChange={e => setDealFormData(p => ({ ...p, venture: e.target.value }))} className="w-full h-9 rounded-md border border-input bg-background text-sm px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer">{["Ace Consultancys", "NexAce Tech"].map(v => <option key={v} value={v}>{v}</option>)}</select></div>
+                <div className="space-y-1"><label className={labelCls}>Venture</label><select value={dealFormData.venture} onChange={e => setDealFormData(p => ({ ...p, venture: e.target.value }))} className="w-full h-9 rounded-md border border-input bg-background text-sm px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer">{["Ace Consultancys", "NIMO Tech"].map(v => <option key={v} value={v}>{v}</option>)}</select></div>
               </div>
               <div className="space-y-1"><label className={labelCls}>Notes</label><textarea rows={2} className="w-full rounded-md border border-input bg-background text-sm px-3 py-2 text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary" value={dealFormData.notes} onChange={e => setDealFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Key requirements, client context..." /></div>
               <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-border/60">

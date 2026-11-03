@@ -409,7 +409,7 @@ export default function ReportsDashboard({ embedded = true }: ReportsDashboardPr
           role: currentUser?.role || "Operations Admin",
           department: currentUser?.department || "Operations",
           shiftName: currentUser?.shiftName || "Standard Day Shift",
-          tenantName: "NexAce CRM Workspace",
+          tenantName: "NIMO-CRM Workspace",
         },
         includeKpis: pdfIncludeKpis,
         includeTasks: pdfIncludeTasks,

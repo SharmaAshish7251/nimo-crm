@@ -101,7 +101,7 @@ export function SalesExecutiveDashboard({
   // ── Target Quota State — persisted to localStorage so it survives navigation ──
   const [teamTargetQuota, setTeamTargetQuota] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("nexace_bd_team_quota");
+      const saved = localStorage.getItem("nimo_bd_team_quota");
       if (saved) return Number(saved) || 400000;
     }
     return 400000;
@@ -109,14 +109,14 @@ export function SalesExecutiveDashboard({
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetQuotaInput, setTargetQuotaInput] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("nexace_bd_team_quota");
+      const saved = localStorage.getItem("nimo_bd_team_quota");
       return saved || "400000";
     }
     return "400000";
   });
   const [targetPeriod, setTargetPeriod] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("nexace_bd_target_period") || "2026 Annual Target";
+      return localStorage.getItem("nimo_bd_target_period") || "2026 Annual Target";
     }
     return "2026 Annual Target";
   });
@@ -193,7 +193,7 @@ export function SalesExecutiveDashboard({
       return {
         id: `rep-${idx + 1}`,
         name,
-        email: `${name.toLowerCase().replace(/\s+/g, ".")}@nexace.com`,
+        email: `${name.toLowerCase().replace(/\s+/g, ".")}@nimo-crm.com`,
         phone: `+1 555-0${120 + idx * 11}`,
         role: idx === 0 ? "Enterprise Sales Lead" : idx === 1 ? "Key Account Manager" : idx === 2 ? "Senior Account Executive" : "BD Executive",
         avatarBg: REP_COLORS[idx % REP_COLORS.length],
@@ -1816,8 +1816,8 @@ export function SalesExecutiveDashboard({
                   setTeamTargetQuota(val);
                   // Persist to localStorage so quota survives tab navigation
                   if (typeof window !== "undefined") {
-                    localStorage.setItem("nexace_bd_team_quota", String(val));
-                    localStorage.setItem("nexace_bd_target_period", targetPeriod);
+                    localStorage.setItem("nimo_bd_team_quota", String(val));
+                    localStorage.setItem("nimo_bd_target_period", targetPeriod);
                   }
                   setShowTargetModal(false);
                 }}

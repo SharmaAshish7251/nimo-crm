@@ -101,7 +101,7 @@ export function NativeLoginScreen({ onReplayOnboarding, onLoginSuccess }: Native
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              NexAce{" "}
+              NIMO{" "}
               <span style={{ color: "#008080" }}>CRM</span>
             </h1>
             <p className="text-xs text-slate-500 font-medium mt-0.5">

@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       }
 
       const csvContent = convertRecordsToCsv(records);
-      const filename = `nexace_${colName.toLowerCase()}_${Date.now()}.csv`;
+      const filename = `nimo_${colName.toLowerCase()}_${Date.now()}.csv`;
 
       return new NextResponse(csvContent, {
         status: 200,
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     // Default: JSON Full / Selective Workspace Backup Package
     const backupPackage = await exportTenantBackup(tenantObjectId, session, collections, { sanitize });
-    const filename = `nexace_backup_${backupPackage.manifest.tenantSlug}_${new Date().toISOString().replace(/[:.]/g, "-")}.nexace.json`;
+    const filename = `nimo_backup_${backupPackage.manifest.tenantSlug}_${new Date().toISOString().replace(/[:.]/g, "-")}.nimo.json`;
 
     return new NextResponse(JSON.stringify(backupPackage, null, 2), {
       status: 200,

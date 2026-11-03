@@ -1302,7 +1302,7 @@ function SettingsPageContent() {
                       <Input
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="e.g. NexAce Technologies Pvt Ltd"
+                        placeholder="e.g. NIMO Technologies Pvt Ltd"
                         required
                       />
                     </div>
@@ -1368,7 +1368,7 @@ function SettingsPageContent() {
                         type="url"
                         value={companyWebsite}
                         onChange={(e) => setCompanyWebsite(e.target.value)}
-                        placeholder="e.g. https://nexace.com"
+                        placeholder="e.g. https://nimo-crm.com"
                       />
                     </div>
                   </div>
@@ -1392,7 +1392,7 @@ function SettingsPageContent() {
                         type="email"
                         value={companyEmail}
                         onChange={(e) => setCompanyEmail(e.target.value)}
-                        placeholder="e.g. contact@nexace.com"
+                        placeholder="e.g. contact@nimo-crm.com"
                       />
                     </div>
 
@@ -1402,7 +1402,7 @@ function SettingsPageContent() {
                         type="email"
                         value={companyBillingEmail}
                         onChange={(e) => setCompanyBillingEmail(e.target.value)}
-                        placeholder="e.g. finance@nexace.com"
+                        placeholder="e.g. finance@nimo-crm.com"
                       />
                     </div>
 
@@ -1543,7 +1543,7 @@ function SettingsPageContent() {
                         type="text"
                         value={companyLegalName}
                         onChange={(e) => setCompanyLegalName(e.target.value)}
-                        placeholder="e.g. NexAce Technologies Private Limited"
+                        placeholder="e.g. NIMO Technologies Private Limited"
                       />
                     </div>
 
@@ -1610,7 +1610,7 @@ function SettingsPageContent() {
                         type="text"
                         value={companyAccountName}
                         onChange={(e) => setCompanyAccountName(e.target.value)}
-                        placeholder="e.g. NexAce Technologies Pvt Ltd"
+                        placeholder="e.g. NIMO Technologies Pvt Ltd"
                       />
                     </div>
 

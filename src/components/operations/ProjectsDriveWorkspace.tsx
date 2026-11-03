@@ -157,7 +157,7 @@ export function ProjectsDriveWorkspace({ initialTab, hideHeader = false }: Proje
       title: "Client Onboarding & Initial Setup Workflow",
       category: "Operations",
       content: "Step 1: Create client account in CRM dashboard.\nStep 2: Assign dedicated Account Manager and Technical Lead.\nStep 3: Schedule kick-off discovery call within 48 hours.\nStep 4: Share Workspace Drive folder & project portal credentials.",
-      author: "NexAce Admin",
+      author: "NIMO Admin",
       updatedAt: new Date().toISOString()
     },
     {
@@ -2012,7 +2012,7 @@ export function ProjectsDriveWorkspace({ initialTab, hideHeader = false }: Proje
                     onDrop={async (e) => {
                       e.preventDefault();
                       setDragOverCol(null);
-                      const id = e.dataTransfer.getData("nexace/task-id");
+                      const id = e.dataTransfer.getData("nimo/task-id");
                       if (id && id !== col) {
                         setTasks((prev: any[]) =>
                           prev.map((t) => t._id === id ? { ...t, status: col } : t)
@@ -2086,7 +2086,7 @@ export function ProjectsDriveWorkspace({ initialTab, hideHeader = false }: Proje
                               key={t._id}
                               draggable
                               onDragStart={(e) => {
-                                e.dataTransfer.setData("nexace/task-id", t._id);
+                                e.dataTransfer.setData("nimo/task-id", t._id);
                                 e.dataTransfer.effectAllowed = "move";
                                 setDraggedTaskId(t._id);
                               }}

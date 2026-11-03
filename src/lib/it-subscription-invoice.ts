@@ -70,7 +70,7 @@ export async function autoGenerateSubscriptionInvoice({
     businessAddress: "Cloud Software & SaaS Services",
     businessEmail: `billing@${sub.tool.toLowerCase().replace(/[^a-z0-9]/g, "") || "vendor"}.com`,
     billedToName: billedTo,
-    billedToAddress: "NexAce Technologies",
+    billedToAddress: "NIMO Technologies",
     billedToEmail: "",
     items: [
       {

@@ -228,7 +228,7 @@ export default function HRPage() {
     }
 
     const content = `================================================
-NEXACE CRM - LEAVE APPLICATION RECORD
+NIMO-CRM - LEAVE APPLICATION RECORD
 ================================================
 Record ID     : ${leave._id}
 Employee Name : ${leave.userName}

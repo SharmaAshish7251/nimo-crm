@@ -106,17 +106,17 @@ export async function POST(req: NextRequest) {
     const { sendEmail } = await import("@/lib/mail");
     const mailResult = await sendEmail({
       to: cleanEmail,
-      subject: "[NexAce CRM] Verify Your Email Address",
+      subject: "[NIMO-CRM] Verify Your Email Address",
       text: `Your verification code is: ${code}. It expires in 10 minutes.`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 2.5rem 1.5rem; background-color: #f8fafc; color: #1e293b;">
           <div style="max-width: 520px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);">
             <div style="text-align: center; margin-bottom: 2rem;">
-              <h2 style="color: #4f46e5; margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em;">✦ NexAce CRM</h2>
+              <h2 style="color: #4f46e5; margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em;">✦ NIMO-CRM</h2>
               <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.25rem; font-weight: 500;">Email Verification</p>
             </div>
             <p style="font-size: 0.95rem; color: #0f172a; line-height: 1.6; margin-bottom: 0.75rem;">Hello,</p>
-            <p style="font-size: 0.95rem; color: #334155; line-height: 1.6; margin-bottom: 1.75rem;">Please use the following 6-digit verification code to authorize email verification on your NexAce CRM account:</p>
+            <p style="font-size: 0.95rem; color: #334155; line-height: 1.6; margin-bottom: 1.75rem;">Please use the following 6-digit verification code to authorize email verification on your NIMO-CRM account:</p>
             <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 1.25rem; border-radius: 12px; text-align: center; margin: 1.75rem 0;">
               <span style="font-size: 2.2rem; font-weight: 800; letter-spacing: 6px; color: #4338ca; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${code}</span>
             </div>

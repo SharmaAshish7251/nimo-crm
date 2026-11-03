@@ -806,7 +806,7 @@ export function ZeroTouchPayrollDesk({
               {/* Slip Header Banner */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
                 <div>
-                  <h2 className="text-lg font-black text-foreground uppercase tracking-wider">NexAce Technologies</h2>
+                  <h2 className="text-lg font-black text-foreground uppercase tracking-wider">NIMO Technologies</h2>
                   <p className="text-[11px] text-muted-foreground">Monthly Salary Disbursement & Tax Computation Slip</p>
                 </div>
                 <div className="text-right">

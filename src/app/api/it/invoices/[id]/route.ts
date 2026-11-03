@@ -535,7 +535,7 @@ export async function PATCH(
 
               await sendEmail({
                 to: internalUser.email,
-                subject: `[NexAce CRM] Invoice ${updated.invoiceNo} Returned for Revision`,
+                subject: `[NIMO-CRM] Invoice ${updated.invoiceNo} Returned for Revision`,
                 text: `Hello ${internalUser.name},\n\nYour invoice ${updated.invoiceNo} was returned for revision by ${session.userName} (${session.role}).\n\nFlagged Issues:\n${objectionsText}\n\nPlease log in to your portal, make the necessary corrections, and re-initiate your invoice.`,
                 html: `
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
@@ -548,7 +548,7 @@ export async function PATCH(
                       ${objectionsHtml}
                     </div>
                     <p style="color: #475569; font-size: 14px;">You can review each objection, make the required corrections to your hours, tasks, or line items, and re-initiate the invoice directly.</p>
-                    <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">Log in to <a href="/dashboard/settings?tab=invoice" style="color: #4f46e5;">NexAce CRM</a> to fix and resubmit.</p>
+                    <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">Log in to <a href="/dashboard/settings?tab=invoice" style="color: #4f46e5;">NIMO-CRM</a> to fix and resubmit.</p>
                   </div>
                 `,
               });
@@ -609,7 +609,7 @@ export async function PATCH(
 
             await sendEmail({
               to: internalUser.email,
-              subject: `[NexAce CRM] Invoice Paid: ${updated.invoiceNo}`,
+              subject: `[NIMO-CRM] Invoice Paid: ${updated.invoiceNo}`,
               text: `Hello ${internalUser.name},\n\nYour invoice ${updated.invoiceNo} has been paid via ${payMethod} by ${session.userName || "Admin"}.\n\nTotal Paid: ₹${updated.total?.toLocaleString()}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
@@ -625,7 +625,7 @@ export async function PATCH(
                   </div>
                   <p style="margin: 10px 0; font-size: 13px; color: #16a34a; font-weight: bold;">📄 Official invoice PDF is attached to this email.</p>
                   ${hasReceipt ? `<p style="font-size: 13px; color: #475569;">📎 Payment screenshot is stored in your company Drive Space under 'Finance Portal'.</p>` : ""}
-                  <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">Log in to your NexAce dashboard to view details.</p>
+                  <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">Log in to your NIMO dashboard to view details.</p>
                 </div>
               `,
               attachments,

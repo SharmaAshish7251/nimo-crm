@@ -11,7 +11,7 @@ const SEED_EXTERNAL_TEAMS = [
     companyName: "DevStudio Solutions Ltd",
     role: "Lead Full-Stack Contractor",
     serviceCategory: "Software Development",
-    assignedProject: "NexAce Cloud CRM",
+    assignedProject: "NIMO-CRM Cloud",
     hourlyRate: 3500,
     currency: "INR",
     status: "Active",

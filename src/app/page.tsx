@@ -54,7 +54,7 @@ export default function Home() {
           <span className={styles.logoIcon}>
             <i className="fa-solid fa-layer-group" />
           </span>
-          <span className={styles.logoText}>NexAce <span className={styles.logoCRM}>CRM</span></span>
+          <span className={styles.logoText}>NIMO <span className={styles.logoCRM}>CRM</span></span>
         </div>
         <nav className={styles.nav}>
           {/* Desktop Navigation Links */}
@@ -241,7 +241,7 @@ export default function Home() {
               <div className={styles.mobileDrawerFooterBar}>
                 <div className={styles.mobileFooterBrand}>
                   <i className="fa-solid fa-layer-group" />
-                  <span>NexAce CRM Enterprise</span>
+                  <span>NIMO-CRM Enterprise</span>
                 </div>
                 <div className={styles.mobileFooterStatus}>
                   <span className={styles.footerStatusDot} />
@@ -270,7 +270,7 @@ export default function Home() {
           client relationships, and team communications without the tool sprawl.
         </p>
 
-        {/* ── Animated Universal Flow Engine: Inbound Sources -> NexAce CRM -> Gaining Sales ── */}
+        {/* ── Animated Universal Flow Engine: Inbound Sources -> NIMO-CRM -> Gaining Sales ── */}
         <HeroDataFlowEngine />
 
         <div className={styles.ctaGroup}>
@@ -499,10 +499,10 @@ export default function Home() {
       {/* ── Footer ── */}
       <footer className={styles.footer}>
         <div className={styles.footerLogo}>
-          <i className="fa-solid fa-layer-group" /> NexAce CRM
+          <i className="fa-solid fa-layer-group" /> NIMO-CRM
         </div>
         <span className={styles.footerCopy}>
-          © {new Date().getFullYear()} NexAce CRM · All rights reserved
+          © {new Date().getFullYear()} NIMO-CRM · All rights reserved
         </span>
         <div className={styles.footerLinks}>
           <Link href="/guide" className={styles.footerLink}>User Guide</Link>

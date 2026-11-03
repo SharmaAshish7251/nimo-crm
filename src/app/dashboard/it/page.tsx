@@ -2905,7 +2905,7 @@ function DevicesTab({
 
             <div className="p-4 rounded-xl bg-muted/40 border-2 border-dashed border-primary/30 text-center space-y-3 print:border-solid">
               <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                <span>NexAce IT Asset</span>
+                <span>NIMO IT Asset</span>
                 <span>{badgeDevice.type}</span>
               </div>
               
@@ -3974,7 +3974,7 @@ function InvoicesTab({ invoices, loading, onAdd, onEdit, onDelete, autoOpenAdd, 
                       Approved by {previewItem.approvedBy}
                     </p>
                   )}
-                  <p className="text-[10px] text-muted-foreground">{previewItem.businessName || "NexAce IT Team"}</p>
+                  <p className="text-[10px] text-muted-foreground">{previewItem.businessName || "NIMO IT Team"}</p>
                 </div>
                 {previewItem.signatureUrl && (
                   <div className="bg-white/80 dark:bg-white/10 p-1.5 rounded-lg border border-border/60">

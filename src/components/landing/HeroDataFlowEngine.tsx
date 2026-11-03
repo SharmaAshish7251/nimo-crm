@@ -111,7 +111,7 @@ export function HeroDataFlowEngine() {
       <div className={styles.flowTopBar}>
         <div className={styles.flowTagline}>
           <i className={`fa-solid fa-network-wired ${styles.taglineIcon}`} />
-          <span>Multi-Channel Ingestion &rarr; NexAce CRM &rarr; Gained Sales</span>
+          <span>Multi-Channel Ingestion &rarr; NIMO-CRM &rarr; Gained Sales</span>
         </div>
 
         <div className={styles.flowLiveBadge}>
@@ -159,7 +159,7 @@ export function HeroDataFlowEngine() {
           })}
         </div>
 
-        {/* ── STAGE 2: Central NexAce CRM Core (Center) ── */}
+        {/* ── STAGE 2: Central NIMO-CRM Core (Center) ── */}
         <div className={styles.hubCenter}>
           <div className={styles.beamIn} aria-hidden>
             <i className="fa-solid fa-angles-right" />
@@ -173,7 +173,7 @@ export function HeroDataFlowEngine() {
                 <i className="fa-solid fa-bolt" />
               </div>
               <div className={styles.hubTitleGroup}>
-                <h4 className={styles.hubTitle}>NexAce CRM Core</h4>
+                <h4 className={styles.hubTitle}>NIMO-CRM Core</h4>
                 <span className={styles.hubSubtitle}>
                   <i className="fa-solid fa-sparkles" /> Compiling &amp; Enriching
                 </span>

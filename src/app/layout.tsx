@@ -18,8 +18,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "NexAce CRM | The Unified Workspace",
-  applicationName: "NexAce CRM",
+  title: "NIMO-CRM | The Unified Workspace",
+  applicationName: "NIMO-CRM",
   description: "Enterprise multi-tenant workspace for teams, sprints, projects, communications, HR, goals, clients, and referrals.",
   manifest: "/manifest.json",
 };

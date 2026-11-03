@@ -72,7 +72,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess, defaultTarget = "c
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `nexace_${targetEntity}_import_template.csv`);
+    link.setAttribute("download", `nimo_${targetEntity}_import_template.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

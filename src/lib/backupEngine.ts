@@ -209,7 +209,7 @@ export const MODEL_MAP: Record<string, any> = {
 };
 
 export interface BackupManifest {
-  format: "nexace-database-backup";
+  format: "nimo-database-backup" | "nimo-database-backup";
   version: "1.0";
   exportedAt: string;
   environment: string;
@@ -279,7 +279,7 @@ export async function exportTenantBackup(
 
   const tenant = await Tenant.findById(tenantObjectId).lean();
   const tenantSlug = tenant?.slug || "workspace";
-  const tenantName = tenant?.name || session.tenantName || "NexAce Workspace";
+  const tenantName = tenant?.name || session.tenantName || "NIMO Workspace";
 
   const allCollectionNames = Object.keys(MODEL_MAP).filter((c) => c !== "RateLimit" && c !== "EmailVerification");
   const targetCollections =
@@ -317,7 +317,7 @@ export async function exportTenantBackup(
   const checksum = computeChecksum(rawDataString);
 
   const manifest: BackupManifest = {
-    format: "nexace-database-backup",
+    format: "nimo-database-backup",
     version: "1.0",
     exportedAt: new Date().toISOString(),
     environment: process.env.NODE_ENV || "production",
@@ -387,8 +387,8 @@ export async function inspectBackupPackage(
   }
 
   const manifest = backupPackage.manifest as BackupManifest;
-  if (!manifest || manifest.format !== "nexace-database-backup") {
-    errors.push("Invalid file format: Missing 'nexace-database-backup' manifest header.");
+  if (!manifest || (manifest.format !== "nimo-database-backup" && manifest.format !== "nimo-database-backup")) {
+    errors.push("Invalid file format: Missing 'nimo-database-backup' manifest header.");
   }
 
   const data = backupPackage.data;

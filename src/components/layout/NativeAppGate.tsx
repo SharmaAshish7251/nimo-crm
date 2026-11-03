@@ -25,7 +25,7 @@ interface NativeAppGateProps {
  */
 type NativeAppState = "splash" | "onboarding" | "ready";
 
-const ONBOARDING_DONE_KEY = "nexace_native_onboarding_done";
+const ONBOARDING_DONE_KEY = "nimo_native_onboarding_done";
 const MIN_SPLASH_MS = 600;
 
 /** Branded full-screen launch splash — instant hide when content is ready */
@@ -79,7 +79,7 @@ function SplashOverlay({ visible }: { visible: boolean }) {
           marginBottom: 8,
         }}
       >
-        NexAce <span style={{ color: "#00c5a0" }}>CRM</span>
+        NIMO <span style={{ color: "#00c5a0" }}>CRM</span>
       </div>
 
       {/* Tagline */}
@@ -114,7 +114,7 @@ function SplashOverlay({ visible }: { visible: boolean }) {
               borderRadius: "50%",
               background: "#00c5a0",
               opacity: 0.7,
-              animation: `nexace-splash-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
+              animation: `nimo-splash-dot 1.2s ease-in-out ${i * 0.2}s infinite`,
             }}
           />
         ))}
@@ -122,7 +122,7 @@ function SplashOverlay({ visible }: { visible: boolean }) {
 
       {/* Inline keyframes — no extra CSS file needed */}
       <style>{`
-        @keyframes nexace-splash-dot {
+        @keyframes nimo-splash-dot {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
           40%            { transform: scale(1);   opacity: 1;    }
         }

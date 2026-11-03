@@ -404,7 +404,7 @@ function SidebarNavMenu({ canAccessModule, can, isEmployeeOrHR, isPending, onNav
       };
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem("nexace_sidebar_open_nested", JSON.stringify(next));
+          localStorage.setItem("nimo_sidebar_open_nested", JSON.stringify(next));
         } catch {}
       }
       return next;
@@ -419,9 +419,9 @@ function SidebarNavMenu({ canAccessModule, can, isEmployeeOrHR, isPending, onNav
     if (!hasHydratedRef.current && typeof window !== "undefined") {
       hasHydratedRef.current = true;
       try {
-        const rawCats = localStorage.getItem("nexace_sidebar_open_categories");
+        const rawCats = localStorage.getItem("nimo_sidebar_open_categories");
         if (rawCats) savedCats = JSON.parse(rawCats);
-        const rawNested = localStorage.getItem("nexace_sidebar_open_nested");
+        const rawNested = localStorage.getItem("nimo_sidebar_open_nested");
         if (rawNested) savedNested = JSON.parse(rawNested);
       } catch {}
     }
@@ -484,7 +484,7 @@ function SidebarNavMenu({ canAccessModule, can, isEmployeeOrHR, isPending, onNav
       };
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem("nexace_sidebar_open_categories", JSON.stringify(next));
+          localStorage.setItem("nimo_sidebar_open_categories", JSON.stringify(next));
         } catch {}
       }
       return next;
@@ -994,7 +994,7 @@ export function DashboardClientLayout({ session, menuItems, isPending = false, c
               <i className="fa-solid fa-layer-group text-slate-950 text-sm font-black" />
             </div>
             <span className="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">
-              NexAce <span className="text-[#00c5a0]">CRM</span>
+              NIMO <span className="text-[#00c5a0]">CRM</span>
             </span>
           </Link>
           {/* Close for mobile */}
@@ -1148,7 +1148,7 @@ export function DashboardClientLayout({ session, menuItems, isPending = false, c
               <button
                 onClick={() => setSpotlightOpen(true)}
                 className="relative w-9 h-9 border border-slate-200 dark:border-[#232d3b] rounded-xl bg-slate-50 dark:bg-[#1a222d] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1e2632] flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
-                title="What's New in NexAce"
+                title="What's New in NIMO-CRM"
               >
                 <i className="fa-solid fa-wand-magic-sparkles text-xs text-amber-500 dark:text-amber-400" />
                 {hasNewUpdates && (
@@ -1180,7 +1180,7 @@ export function DashboardClientLayout({ session, menuItems, isPending = false, c
               <button
                 onClick={() => setSpotlightOpen(true)}
                 className="relative w-9 h-9 border border-slate-200 dark:border-[#232d3b] rounded-xl bg-slate-50 dark:bg-[#1a222d] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center cursor-pointer transition-colors shadow-2xs"
-                title="What's New in NexAce"
+                title="What's New in NIMO-CRM"
               >
                 <i className="fa-solid fa-wand-magic-sparkles text-xs text-amber-500" />
                 {hasNewUpdates && (

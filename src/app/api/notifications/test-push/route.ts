@@ -66,7 +66,7 @@ export async function POST() {
     }
 
     await sendFcmPush(tokens, {
-      title: "NexAce Test Push Alert",
+      title: "NIMO-CRM Test Push Alert",
       message: `Test notification sent successfully to your mobile app at ${new Date().toLocaleTimeString()}!`,
       type: "system",
       linkUrl: "/dashboard/notifications",
