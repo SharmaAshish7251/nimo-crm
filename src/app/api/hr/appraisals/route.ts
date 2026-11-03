@@ -1,0 +1,187 @@
+import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/db";
+import { HRAppraisal } from "@/models/HRAppraisal";
+import { requireTenantSession, isAuthError } from "@/lib/auth-guard";
+import { notify, notifyAdmins } from "@/lib/notify";
+
+import { isSubAdminRole } from "@/lib/roles";
+
+export async function GET(req: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session, userObjectId } = authResult;
+
+    await connectToDatabase();
+    const query: any = { tenantId: tenantObjectId };
+
+    const { getHRAccessScope } = await import("@/lib/hrIsolation");
+    const scope = await getHRAccessScope(session, tenantObjectId, userObjectId);
+    if (scope.allowedUserIds) {
+      query.userId = { $in: scope.allowedUserIds };
+    }
+
+    const appraisals = await HRAppraisal.find(query).sort({ createdAt: -1 }).lean();
+    return NextResponse.json({ appraisals });
+  } catch (error: unknown) {
+    console.error("GET /api/hr/appraisals error:", error);
+    return NextResponse.json({ error: "Failed to fetch appraisals" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const authResult = await requireTenantSession(["Admin", "Manager", "HR", "OPS"]);
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session } = authResult;
+
+    await connectToDatabase();
+    const body = await req.json();
+    const { userId, userName, managerId, managerName, cycle, type, kras, probationEndDate } = body;
+
+    if (!userId || !cycle) {
+      return NextResponse.json({ error: "User and Cycle are required" }, { status: 400 });
+    }
+
+    const { User } = await import("@/models/User");
+    const targetUser = await User.findOne({ _id: userId, tenantId: tenantObjectId }).lean();
+    if (!targetUser) {
+      return NextResponse.json({ error: "Employee not found in this workspace" }, { status: 404 });
+    }
+
+    const defaultKRAs = [
+      { kraTitle: "Project Deliverables & Quality", weightagePercentage: 30, selfScore: 0, managerScore: 0, comments: "" },
+      { kraTitle: "Communication & Team Collaboration", weightagePercentage: 25, selfScore: 0, managerScore: 0, comments: "" },
+      { kraTitle: "Technical Competency & Problem Solving", weightagePercentage: 25, selfScore: 0, managerScore: 0, comments: "" },
+      { kraTitle: "Adherence to Processes & Timelines", weightagePercentage: 20, selfScore: 0, managerScore: 0, comments: "" },
+    ];
+
+    const appraisal = await HRAppraisal.create({
+      tenantId: tenantObjectId,
+      userId: targetUser._id,
+      userName: targetUser.name,
+      managerId,
+      managerName: managerName || session.userName,
+      cycle,
+      type: type || "Quarterly Appraisal",
+      status: "Draft",
+      kras: kras && kras.length > 0 ? kras : defaultKRAs,
+      probationStatus: type === "Probation Review" ? "Under Probation" : undefined,
+      probationEndDate: probationEndDate ? new Date(probationEndDate) : undefined,
+    });
+
+    // Send Notification to Employee
+    await notify(tenantObjectId, userId, {
+      title: "Performance Review Created",
+      message: `Your ${type || "Quarterly Appraisal"} (${cycle}) has been initiated.`,
+      type: "appraisal",
+      linkUrl: "/dashboard/hr?tab=appraisals",
+    });
+
+    return NextResponse.json({ appraisal }, { status: 201 });
+  } catch (error: unknown) {
+    console.error("POST /api/hr/appraisals error:", error);
+    return NextResponse.json({ error: "Failed to create appraisal" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session, userObjectId } = authResult;
+
+    await connectToDatabase();
+    const body = await req.json();
+    const {
+      appraisalId,
+      action,
+      kras,
+      selfFeedback,
+      managerFeedback,
+      finalRating,
+      probationStatus,
+      promotionRecommendation,
+      incrementPercentage,
+      reviewerRating,
+      reviewerFeedback,
+    } = body;
+
+    const appraisal = await HRAppraisal.findOne({
+      _id: appraisalId,
+      tenantId: tenantObjectId,
+    });
+
+    if (!appraisal) {
+      return NextResponse.json({ error: "Appraisal record not found" }, { status: 404 });
+    }
+
+    if (action === "submit_peer_review") {
+      if (!reviewerRating || !reviewerFeedback) {
+        return NextResponse.json({ error: "Rating and feedback are required" }, { status: 400 });
+      }
+
+      appraisal.peerReviews = appraisal.peerReviews || [];
+      appraisal.peerReviews.push({
+        reviewerId: userObjectId,
+        reviewerName: session.userName || "Colleague",
+        rating: Math.min(5, Math.max(1, Number(reviewerRating))),
+        feedback: reviewerFeedback,
+        submittedAt: new Date(),
+      });
+
+      await appraisal.save();
+      return NextResponse.json({ success: true, appraisal });
+    } else if (action === "submit_self_review") {
+      if (appraisal.userId.toString() !== userObjectId.toString()) {
+        return NextResponse.json({ error: "Forbidden: you can only submit a self-review for your own appraisal" }, { status: 403 });
+      }
+
+      if (kras) appraisal.kras = kras;
+      if (selfFeedback) appraisal.selfFeedback = selfFeedback;
+
+      const totalSelf = appraisal.kras.reduce((acc: number, item: any) => acc + (item.selfScore || 0), 0);
+      appraisal.overallSelfRating = Number((totalSelf / appraisal.kras.length).toFixed(1));
+      appraisal.status = "Self Review Submitted";
+      appraisal.submittedAt = new Date();
+
+      // Notify Admins and Manager
+      await notifyAdmins(tenantObjectId, {
+        title: "Self Review Submitted",
+        message: `${session.userName} submitted self review for ${appraisal.cycle}.`,
+        type: "appraisal",
+        linkUrl: "/dashboard/hr?tab=appraisals",
+      });
+    } else if (action === "submit_manager_review") {
+      if (session.role !== "Admin" && session.role !== "Manager") {
+        return NextResponse.json({ error: "Unauthorized for manager review" }, { status: 401 });
+      }
+
+      if (kras) appraisal.kras = kras;
+      if (managerFeedback) appraisal.managerFeedback = managerFeedback;
+      if (probationStatus) appraisal.probationStatus = probationStatus;
+      if (promotionRecommendation) appraisal.promotionRecommendation = promotionRecommendation;
+      if (incrementPercentage !== undefined) appraisal.incrementPercentage = Number(incrementPercentage);
+
+      const totalManager = appraisal.kras.reduce((acc: number, item: any) => acc + (item.managerScore || 0), 0);
+      appraisal.overallManagerRating = Number((totalManager / appraisal.kras.length).toFixed(1));
+      appraisal.finalRating = finalRating || appraisal.overallManagerRating;
+      appraisal.status = "Finalized";
+      appraisal.completedAt = new Date();
+
+      // Notify Employee of finalized appraisal
+      await notify(tenantObjectId, appraisal.userId.toString(), {
+        title: "Appraisal Finalized",
+        message: `Your performance review (${appraisal.cycle}) has been finalized by ${session.userName}.`,
+        type: "appraisal",
+        linkUrl: "/dashboard/hr?tab=appraisals",
+      });
+    }
+
+    await appraisal.save();
+    return NextResponse.json({ appraisal });
+  } catch (error: unknown) {
+    console.error("PUT /api/hr/appraisals error:", error);
+    return NextResponse.json({ error: "Failed to update appraisal" }, { status: 500 });
+  }
+}

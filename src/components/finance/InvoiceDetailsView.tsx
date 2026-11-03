@@ -1,0 +1,2304 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
+import { downloadElementAsPdf } from "@/lib/invoice-dom-pdf";
+import { InvoiceHistoryDrawer } from "@/components/finance/InvoiceHistoryDrawer";
+
+export interface IInvoiceObjection {
+  category: string;
+  itemRef?: string;
+  remark: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+}
+
+export interface InvoiceObjectionFormItem {
+  id: string;
+  category: string;
+  itemRef: string;
+  customItemRef?: string;
+  remark: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+}
+
+export interface InvoiceDetailsItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface InvoiceDetailsData {
+  _id?: string;
+  id?: string;
+  invoiceNo: string;
+  invoiceDate: string;
+  dueDate: string;
+  customerNo?: string;
+  businessName: string;
+  businessAddress?: string;
+  businessEmail?: string;
+  billedToName: string;
+  billedToAddress?: string;
+  billedToEmail?: string;
+  shipToAddress?: string;
+  items: InvoiceDetailsItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  discount?: number;
+  total: number;
+  currency: string;
+  status: "Draft" | "Sent" | "Pending" | "Approved" | "Rejected" | "Paid" | "Overdue" | "Archived" | "Cancelled";
+  notes?: string;
+  paymentTerms?: string;
+  bankDetails?: {
+    accountName?: string;
+    bankName?: string;
+    accountNo?: string;
+    ifscCode?: string;
+    branch?: string;
+    upiId?: string;
+  };
+  shiftAttendance?: {
+    totalHours: number;
+    daysWorked: number;
+    overtimeHours: number;
+    records: Array<{
+      date: string;
+      clockIn: string;
+      clockOut: string;
+      totalHours: number;
+      status: string;
+    }>;
+  } | null;
+  timesheetEntries?: {
+    totalHours: number;
+    totalEntries: number;
+    records: Array<{
+      date: string;
+      hours: number;
+      projectName: string;
+      taskDescription: string;
+      billable: boolean;
+    }>;
+  } | null;
+  paymentDetails?: {
+    method: "Bank Transfer" | "UPI" | "Cash";
+    upiId?: string;
+    fromUpiId?: string;
+    toUpiId?: string;
+    transactionId?: string;
+    screenshotUrl?: string;
+    screenshotFileName?: string;
+    paidAt?: string;
+  };
+  signatureUrl?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  approverRole?: string;
+  rejectionReason?: string;
+  rejectionRemark?: string;
+  objections?: IInvoiceObjection[];
+  rejectedBy?: string;
+  rejectedAt?: string;
+  rejectionHistory?: Array<{
+    reason: string;
+    remark?: string;
+    objections?: IInvoiceObjection[];
+    rejectedBy: string;
+    rejectedAt: string | Date;
+    role?: string;
+  }>;
+  revisionCount?: number;
+  hrReview?: {
+    reviewedBy?: string;
+    reviewedById?: string;
+    reviewedAt?: string | Date;
+    verifiedHours?: number;
+    notes?: string;
+  } | null;
+  timeline?: Array<{
+    stage: string;
+    status: string;
+    actorName: string;
+    actorRole: string;
+    actorId?: string;
+    note?: string;
+    timestamp: string | Date;
+  }>;
+  approvalStage?: string;
+  userUpiId?: string;
+}
+
+interface InvoiceDetailsViewProps {
+  invoice: InvoiceDetailsData;
+  onClose?: () => void;
+  onStatusChange?: (newStatus: string, reason?: string, remark?: string, objections?: IInvoiceObjection[]) => void;
+  onPaymentConfirm?: () => void; // intercepts "Paid" selection to open payment modal
+  isUpdatingStatus?: boolean;
+  scope?: "internal" | "external";
+  onReinitiate?: (invoice: InvoiceDetailsData) => void;
+}
+
+function numberToWords(num: number): string {
+  const a = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+    "Seventeen", "Eighteen", "Nineteen"
+  ];
+  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  if (num === 0) return "Zero";
+
+  const numStr = Math.floor(Math.abs(num)).toString();
+  if (numStr.length > 9) return "Amount exceeds range";
+
+  const n = ("000000000" + numStr).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return "";
+
+  let str = "";
+  str += Number(n[1]) !== 0 ? (a[Number(n[1])] || b[Number(n[1][0])] + " " + a[Number(n[1][1])]) + " Crore " : "";
+  str += Number(n[2]) !== 0 ? (a[Number(n[2])] || b[Number(n[2][0])] + " " + a[Number(n[2][1])]) + " Lakh " : "";
+  str += Number(n[3]) !== 0 ? (a[Number(n[3])] || b[Number(n[3][0])] + " " + a[Number(n[3][1])]) + " Thousand " : "";
+  str += Number(n[4]) !== 0 ? (a[Number(n[4])] || b[Number(n[4][0])] + " " + a[Number(n[4][1])]) + " Hundred " : "";
+  str += Number(n[5]) !== 0 ? ((str !== "" ? "and " : "") + (a[Number(n[5])] || b[Number(n[5][0])] + " " + a[Number(n[5][1])]) + " ") : "";
+
+  return str.trim() + " Only";
+}
+
+function getItemChoicesForDetails(inv?: InvoiceDetailsData) {
+  const choices: Array<{ label: string; value: string; group?: string }> = [
+    { label: "General Invoice Issue (Whole Invoice)", value: "General Invoice Issue (Whole Invoice)" },
+  ];
+  if (!inv) return choices;
+
+  if (inv.items && inv.items.length > 0) {
+    inv.items.forEach((item, idx) => {
+      choices.push({
+        label: `Deliverable #${idx + 1}: ${item.description || "Line Item"} (${inv.currency || "$"}${item.amount || 0})`,
+        value: `Line Item #${idx + 1}: ${item.description || "Deliverable"}`,
+        group: "Deliverables",
+      });
+    });
+  }
+
+  const shifts = (inv as any).shiftAttendance?.records;
+  if (Array.isArray(shifts) && shifts.length > 0) {
+    shifts.forEach((shift: any, idx: number) => {
+      choices.push({
+        label: `Shift: ${shift.date || `Day ${idx + 1}`} (${shift.clockIn || "--"} - ${shift.clockOut || "--"}, ${shift.totalHours || 0} hrs)`,
+        value: `Shift Attendance: ${shift.date || `Day ${idx + 1}`} (${shift.totalHours || 0} hrs)`,
+        group: "Shift Attendance",
+      });
+    });
+  }
+
+  const ts = (inv as any).timesheetEntries?.records;
+  if (Array.isArray(ts) && ts.length > 0) {
+    ts.forEach((entry: any, idx: number) => {
+      choices.push({
+        label: `Timesheet #${idx + 1}: ${entry.date || ""} - ${entry.projectName || "Project"} (${entry.hours || 0} hrs)`,
+        value: `Timesheet: ${entry.projectName || "Project"} on ${entry.date || `Entry ${idx + 1}`}`,
+        group: "Timesheets",
+      });
+    });
+  }
+
+  choices.push({ label: "Custom / Other Item (Specify below)", value: "__CUSTOM__" });
+  return choices;
+}
+
+export function InvoiceDetailsView({
+  invoice,
+  onClose,
+  onStatusChange,
+  onPaymentConfirm,
+  isUpdatingStatus = false,
+  scope,
+  onReinitiate,
+}: InvoiceDetailsViewProps) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string>("");
+  const [companySignatureUrl, setCompanySignatureUrl] = useState<string>("");
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+
+  const createBlankObjection = (): InvoiceObjectionFormItem => ({
+    id: Math.random().toString(36).substring(2, 9),
+    category: "Timesheet Hours Discrepancy",
+    itemRef: "General Invoice Issue (Whole Invoice)",
+    customItemRef: "",
+    remark: "",
+    attachmentUrl: "",
+    attachmentName: "",
+  });
+
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [objections, setObjections] = useState<InvoiceObjectionFormItem[]>([createBlankObjection()]);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings/company")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.company) {
+          if (data.company.logoUrl) setCompanyLogoUrl(data.company.logoUrl);
+          if (data.company.signatureUrl) setCompanySignatureUrl(data.company.signatureUrl);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const getCurrencySymbol = (curr: string = "INR") => {
+    switch (curr?.toUpperCase()) {
+      case "USD": return "$";
+      case "EUR": return "€";
+      case "GBP": return "£";
+      case "AED": return "AED ";
+      case "INR":
+      default:
+        return "₹";
+    }
+  };
+
+  const symbol = getCurrencySymbol(invoice.currency);
+
+  const headerSubtitle = invoice.businessAddress?.trim()
+    ? invoice.businessAddress.trim()
+    : invoice.businessName && !invoice.businessName.toLowerCase().includes("nexace")
+    ? "Professional Services & Consulting"
+    : "CRM & Enterprise Solutions";
+
+  const isEmployeeInvoice =
+    (invoice.invoiceNo && invoice.invoiceNo.startsWith("INV-SAL")) ||
+    (invoice.customerNo && (invoice.customerNo.startsWith("EMP-") || invoice.customerNo.includes("SAL"))) ||
+    Boolean((invoice as any).businessSubtitle && (invoice as any).businessSubtitle.toUpperCase().includes("EMPLOYEE"));
+
+  const signatoryEntity = isEmployeeInvoice
+    ? (invoice.billedToName || "Nex Ace")
+    : (invoice.businessName || "NexAce Technologies");
+
+  const displaySignature = isEmployeeInvoice
+    ? companySignatureUrl
+    : (companySignatureUrl || invoice.signatureUrl);
+
+  const getStatusBadge = (status: string) => {
+    const config: Record<string, { style: string; label: string }> = {
+      Paid: { style: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300/80 dark:border-emerald-700", label: "PAID IN FULL" },
+      Pending: { style: "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300/80 dark:border-amber-700", label: "PENDING" },
+      Sent: { style: "bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-300/80 dark:border-sky-700", label: "SENT" },
+      Draft: { style: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700", label: "DRAFT" },
+      Overdue: { style: "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300/80 dark:border-rose-700", label: "OVERDUE" },
+      Cancelled: { style: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-300 dark:border-zinc-700 line-through", label: "CANCELLED" },
+      Archived: { style: "bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300/80 dark:border-purple-700", label: "ARCHIVED" },
+    };
+    const c = config[status] || { style: "bg-muted text-muted-foreground border-border", label: status.toUpperCase() };
+    return (
+      <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider border shadow-2xs", c.style)}>
+        {c.label}
+      </span>
+    );
+  };
+
+  const formatSignatoryName = (raw: string) => {
+    if (!raw) return "NexAce";
+    const first = raw.trim().split(" ")[0] || "NexAce";
+    if (first.toUpperCase() === "NEXACE") return "NexAce";
+    if (first === first.toUpperCase()) {
+      return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    }
+    return first;
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Invoice - ${invoice.invoiceNo}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Dancing+Script:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+        <style>
+          @page { size: A4 portrait; margin: 8mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: #0f172a;
+            background: #ffffff;
+            margin: 0;
+            padding: 4mm;
+            font-size: 11.5px;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .invoice-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 28px 32px;
+            max-width: 820px;
+            margin: 0 auto;
+            position: relative;
+            background: #ffffff;
+          }
+          .top-accent {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #0ea5e9 100%);
+            border-radius: 16px 16px 0 0;
+          }
+          .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f1f5f9;
+          }
+          .brand-row { display: flex; align-items: center; gap: 14px; }
+          .brand-logo-img {
+            width: 48px; height: 48px; object-fit: contain;
+            border-radius: 12px; border: 1px solid #e2e8f0; padding: 2px;
+          }
+          .brand-logo-box {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: #f0fdfa; border: 2px solid #14b8a6;
+            display: flex; align-items: center; justify-content: center;
+            color: #0f172a; font-weight: 900; font-size: 13px;
+            letter-spacing: 0.05em;
+          }
+          .brand-name { font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
+          .brand-subtitle { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+          .header-box {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 10px; padding: 8px 14px;
+            display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+            min-width: 220px;
+          }
+          .ci-label { font-size: 8.5px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.12em; }
+          .inv-number { font-size: 15px; font-weight: 900; color: #0f172a; font-family: ui-monospace, monospace; }
+          .status-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 9px; border-radius: 999px;
+            font-size: 9.5px; font-weight: 800; border: 1px solid;
+          }
+          .appr-line { font-size: 9.5px; font-weight: 700; color: #059669; }
+          .ref-line { font-size: 9.5px; color: #64748b; }
+          .ref-line strong { color: #0f172a; font-family: ui-monospace, monospace; }
+
+          /* 3-Column Flat Info Section matching PDF */
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 22px;
+          }
+          .info-col {
+            display: flex;
+            flex-direction: column;
+          }
+          .info-col-header {
+            font-size: 10px; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin-bottom: 8px;
+          }
+          .info-row {
+            display: flex; justify-content: flex-start; align-items: center; gap: 8px;
+            font-size: 10.5px; padding: 2px 0;
+          }
+          .info-label { color: #64748b; width: 65px; flex-shrink: 0; }
+          .info-val { font-weight: 700; color: #0f172a; font-family: ui-monospace, monospace; }
+          .info-val-em { font-weight: 700; color: #059669; font-family: ui-monospace, monospace; }
+          .party-name { font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 3px; }
+          .party-addr { font-size: 10.5px; color: #64748b; line-height: 1.45; white-space: pre-line; }
+          .party-email {
+            font-size: 10.5px; color: #0284c7; font-family: ui-monospace, monospace;
+            margin-top: 4px; display: flex; align-items: center; gap: 5px;
+          }
+
+          /* Table section */
+          .table-header-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px;
+          }
+          .table-title {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 11px; font-weight: 800; color: #0f172a;
+            text-transform: uppercase; letter-spacing: 0.06em;
+          }
+          .table-title i { color: #0d9488; }
+          .item-count { font-size: 10px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 999px; }
+          .items-table {
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            border: 1px solid #e2e8f0; border-radius: 12px;
+            overflow: hidden; margin-bottom: 22px;
+          }
+          .items-table thead th {
+            background: #f1f5f9; border-bottom: 1px solid #e2e8f0;
+            padding: 10px 14px; font-size: 10px; font-weight: 800;
+            text-transform: uppercase; color: #475569; letter-spacing: 0.06em;
+          }
+          .items-table tbody td {
+            padding: 12px 14px; border-bottom: 1px solid #f1f5f9;
+            font-size: 11.5px; color: #334155;
+          }
+          .items-table tbody tr:nth-child(even) td { background: #fafafa; }
+          .items-table tbody tr:last-child td { border-bottom: none; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+
+          /* Bottom 2-col */
+          .bottom-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 16px; margin-bottom: 22px; align-items: start;
+          }
+          .settle-card {
+            border-radius: 12px; border: 1px solid;
+            padding: 14px 16px;
+          }
+          .settle-card-paid { background: rgba(16, 185, 129, 0.04); border-color: rgba(16, 185, 129, 0.25); }
+          .settle-card-unpaid { background: #f8fafc; border-color: #e2e8f0; }
+          .settle-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; padding-bottom: 6px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+          }
+          .settle-title-text {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+          }
+          .settle-badge {
+            font-size: 9.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px;
+            text-transform: uppercase; letter-spacing: 0.05em;
+          }
+
+          .summary-card {
+            border-radius: 12px; background: #f8fafc;
+            border: 1px solid #e2e8f0; padding: 14px 16px;
+          }
+          .summary-header {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 10.5px; font-weight: 800; color: #0f172a;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;
+          }
+          .summary-header i { color: #0d9488; }
+          .summary-row {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; padding: 3px 0; color: #64748b;
+          }
+          .summary-row strong { color: #0f172a; font-family: ui-monospace, monospace; }
+          .total-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            margin-top: 8px; padding-top: 8px;
+            border-top: 1px solid #f1f5f9;
+          }
+          .total-label { font-size: 13px; font-weight: 800; color: #0d9488; }
+          .total-amount { font-size: 22px; font-weight: 900; color: #059669; font-family: ui-monospace, monospace; letter-spacing: -0.02em; }
+          .in-words { font-size: 9.5px; color: #64748b; text-align: right; margin-top: 4px; font-style: italic; }
+
+          /* Sign-off section */
+          .signoff-section {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            padding-top: 14px; margin-bottom: 18px;
+            border-top: 1px solid #f1f5f9;
+          }
+          .sign-block { min-width: 180px; }
+          .sign-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+          .sign-line { width: 224px; border: none; border-bottom: 2px solid #0f172a; margin: 4px 0 6px; }
+          .sign-line-right { margin-left: auto; }
+          .sign-name { font-size: 12px; font-weight: 800; color: #0f172a; }
+          .sign-role { font-size: 10.5px; color: #64748b; }
+          .sign-verified { font-size: 9.5px; font-weight: 800; color: #059669; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+          .sign-cursive { font-family: 'Alex Brush', 'Great Vibes', 'Dancing Script', cursive; font-style: normal; font-size: 58px; font-weight: 400; color: #0f172a; height: 76px; display: flex; align-items: flex-end; line-height: 1.05; transform: rotate(-2deg); transform-origin: bottom left; }
+          .sign-stamp-box {
+            display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 5px 14px; border-radius: 8px;
+            background: #ecfdf5;
+            border: 1px solid rgba(167, 243, 208, 0.8);
+            color: #047857; text-align: center;
+          }
+          .sign-stamp-title { font-size: 9px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
+          .sign-stamp-sub { font-size: 8px; color: #64748b; font-weight: 500; margin-top: 2px; }
+
+          /* Terms & Notes */
+          .terms-box {
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+            padding: 12px 16px; margin-bottom: 16px;
+          }
+          .terms-item { display: flex; align-items: flex-start; gap: 8px; font-size: 10.5px; color: #475569; }
+          .terms-item i { color: #0d9488; margin-top: 2px; font-size: 11px; }
+
+          /* Micro Footer */
+          .micro-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 9px; color: #94a3b8; padding-top: 8px; border-top: 1px solid #f1f5f9;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-card">
+          <div class="top-accent"></div>
+
+          <!-- Header -->
+          <div class="header-row">
+            <div class="brand-row">
+              ${companyLogoUrl
+                ? `<img src="${companyLogoUrl}" class="brand-logo-img" alt="Logo" />`
+                : `<div class="brand-logo-box">CRM</div>`
+              }
+              <div>
+                <div class="brand-name">${invoice.businessName || "Ashish Sharma"}</div>
+                <div class="brand-subtitle">${headerSubtitle}</div>
+              </div>
+            </div>
+            <div class="header-box">
+              <div class="ci-label">${isEmployeeInvoice ? "Employee Invoice" : "Commercial Invoice"}</div>
+              <div class="inv-number">#${invoice.invoiceNo}</div>
+            </div>
+          </div>
+
+          <!-- 3-Column Flat Info Section matching PDF -->
+          <div class="info-grid">
+            <!-- Col 1: Details -->
+            <div class="info-col">
+              <div class="info-col-header">INVOICE DETAILS</div>
+              <div class="info-row">
+                <span class="info-label">Issued:</span>
+                <span class="info-val">${invoice.invoiceDate}</span>
+              </div>
+              ${invoice.status === "Paid" ? `
+              <div class="info-row">
+                <span class="info-label">Paid Date:</span>
+                <span class="info-val-em">${(invoice as any).paymentDetails?.paidAt ? new Date((invoice as any).paymentDetails.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : invoice.invoiceDate}</span>
+              </div>` : `
+              <div class="info-row">
+                <span class="info-label">Due Date:</span>
+                <span class="info-val">${invoice.dueDate}</span>
+              </div>`}
+              <div class="info-row">
+                <span class="info-label">Ref #:</span>
+                <span class="info-val">${invoice.customerNo || `REF-${invoice.invoiceNo}`}</span>
+              </div>
+            </div>
+
+            <!-- Col 2: From -->
+            <div class="info-col">
+              <div class="info-col-header">INVOICE FROM</div>
+              <div class="party-name">${invoice.businessName}</div>
+              <div class="party-addr">${(invoice as any).businessSubtitle || invoice.businessAddress || "Employee • Engineering"}</div>
+              ${invoice.businessEmail ? `<div class="party-email">${invoice.businessEmail}</div>` : ""}
+            </div>
+
+            <!-- Col 3: To -->
+            <div class="info-col">
+              <div class="info-col-header">INVOICE TO</div>
+              <div class="party-name">${invoice.billedToName}</div>
+              <div class="party-addr">${invoice.billedToAddress || "Building no 1254, Tower B Zone, Gurgaon, Noida, 110078, India"}</div>
+              ${invoice.billedToEmail ? `<div class="party-email">${invoice.billedToEmail}</div>` : ""}
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <div class="table-header-row">
+            <div class="table-title">
+              <i class="fa-solid fa-layer-group"></i>
+              Products / Service Items
+            </div>
+            <div class="item-count">${invoice.items.length} ${invoice.items.length === 1 ? "Item" : "Items"}</div>
+          </div>
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width:44px;text-align:center;">#</th>
+                <th>Item &amp; Description</th>
+                <th class="text-center" style="width:90px;">Qty / Hrs</th>
+                <th class="text-right" style="width:120px;">Unit Rate</th>
+                <th class="text-right" style="width:130px;">Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.items.map((item, idx) => `
+                <tr>
+                  <td style="text-align:center;color:#94a3b8;font-family:ui-monospace,monospace;font-weight:700;">${idx + 1}</td>
+                  <td>
+                    <div style="font-weight:700;color:#0f172a;">${item.description}</div>
+                  </td>
+                  <td class="text-center" style="font-family:ui-monospace,monospace;font-weight:600;">${item.quantity}</td>
+                  <td class="text-right" style="color:#64748b;font-family:ui-monospace,monospace;">${symbol}${item.unitPrice.toLocaleString()}</td>
+                  <td class="text-right" style="font-family:ui-monospace,monospace;font-weight:800;color:#0f172a;">${symbol}${item.amount.toLocaleString()}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+
+          <!-- Bottom Grid: Settlement + Financial Summary -->
+          <div class="bottom-grid">
+            <!-- Left: Settlement -->
+            <div class="settle-card ${(invoice as any).paymentDetails?.method ? "settle-card-paid" : "settle-card-unpaid"}">
+              ${(invoice as any).paymentDetails?.method ? `
+                <div class="settle-header">
+                  <div class="settle-title-text" style="color:#059669;">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Payment Received (${(invoice as any).paymentDetails.method})
+                  </div>
+                  <span class="settle-badge" style="background:#d1fae5;color:#047857;border:1px solid #a7f3d0;">Settled</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Payment Method:</span>
+                  <span class="info-val" style="color:#0f172a;">${(invoice as any).paymentDetails.method === "Cash" ? "Cash Settlement" : (invoice as any).paymentDetails.method}</span>
+                </div>
+                ${(invoice as any).paymentDetails.method === "Bank Transfer" ? `
+                  <div class="info-row"><span class="info-label">Bank Name:</span><span class="info-val">${invoice.bankDetails?.bankName || "Corporate Banking"}</span></div>
+                  <div class="info-row"><span class="info-label">Account No:</span><span class="info-val">${invoice.bankDetails?.accountNo || "782459739212"}</span></div>
+                  <div class="info-row"><span class="info-label">IFSC / Code:</span><span class="info-val">${invoice.bankDetails?.ifscCode || "NEXA0004128"}</span></div>
+                ` : ""}
+                ${(invoice as any).paymentDetails.method === "UPI" ? `
+                  <div class="info-row"><span class="info-label">${(invoice as any).paymentDetails.fromUpiId && (invoice as any).paymentDetails.toUpiId ? "Paid From:" : "UPI ID:"}</span>
+                    <span class="info-val">${(invoice as any).paymentDetails.fromUpiId || (invoice as any).paymentDetails.upiId || invoice.bankDetails?.upiId || "nexace@okaxis"}</span></div>
+                  ${(invoice as any).paymentDetails.toUpiId ? `<div class="info-row"><span class="info-label">Paid To:</span><span class="info-val">${(invoice as any).paymentDetails.toUpiId}</span></div>` : ""}
+                  ${(invoice as any).paymentDetails.transactionId ? `<div class="info-row"><span class="info-label">Transaction ID:</span><span class="info-val">${(invoice as any).paymentDetails.transactionId}</span></div>` : ""}
+                ` : ""}
+                <div class="info-row">
+                  <span class="info-label">Paid Date:</span>
+                  <span class="info-val-em">${(invoice as any).paymentDetails.paidAt ? new Date((invoice as any).paymentDetails.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : invoice.invoiceDate}</span>
+                </div>
+                ${invoice.approvedBy ? `<div class="info-row"><span class="info-label">Approved By:</span><span class="info-val-em">${invoice.approvedBy}</span></div>` : ""}
+              ` : `
+                <div class="settle-header">
+                  <div class="settle-title-text" style="color:#0f172a;">
+                    <i class="fa-solid fa-building-columns" style="color:#0d9488;"></i>
+                    Bank &amp; Remittance Details
+                  </div>
+                </div>
+                ${invoice.bankDetails?.accountName ? `<div class="info-row"><span class="info-label">Beneficiary:</span><span class="info-val">${invoice.bankDetails.accountName}</span></div>` : ""}
+                <div class="info-row"><span class="info-label">Bank Name:</span><span class="info-val">${invoice.bankDetails?.bankName || "Corporate Banking Partner"}</span></div>
+                <div class="info-row"><span class="info-label">Account No:</span><span class="info-val">${invoice.bankDetails?.accountNo || "—"}</span></div>
+                <div class="info-row"><span class="info-label">IFSC / Swift:</span><span class="info-val">${invoice.bankDetails?.ifscCode || "—"}</span></div>
+                ${invoice.bankDetails?.branch ? `<div class="info-row"><span class="info-label">Branch:</span><span class="info-val">${invoice.bankDetails.branch}</span></div>` : ""}
+                ${(invoice.bankDetails?.upiId || invoice.userUpiId) ? `<div class="info-row"><span class="info-label">UPI ID:</span><span class="info-val" style="color:#059669;font-weight:700;">${invoice.bankDetails?.upiId || invoice.userUpiId}</span></div>` : ""}
+                <div class="info-row"><span class="info-label">Payment Ref:</span><span class="info-val" style="color:#0d9488;">${invoice.invoiceNo}</span></div>
+              `}
+            </div>
+
+            <!-- Right: Financial Summary -->
+            <div class="summary-card">
+              <div class="summary-header">
+                <i class="fa-solid fa-calculator"></i>
+                Financial Summary
+              </div>
+              <div class="summary-row">
+                <span>Subtotal:</span>
+                <strong>${symbol}${invoice.subtotal.toLocaleString()}</strong>
+              </div>
+              ${invoice.taxRate > 0 ? `
+              <div class="summary-row">
+                <span>Tax / VAT (${invoice.taxRate}%):</span>
+                <strong>+${symbol}${invoice.taxAmount.toLocaleString()}</strong>
+              </div>` : ""}
+              ${(invoice as any).discount > 0 ? `
+              <div class="summary-row" style="color:#059669;">
+                <span>Discount Applied:</span>
+                <strong style="color:#059669;">-${symbol}${((invoice as any).discount).toLocaleString()}</strong>
+              </div>` : ""}
+              <div class="total-row">
+                <div class="total-label">Total Amount:</div>
+                <div class="total-amount">${symbol}${invoice.total.toLocaleString()}</div>
+              </div>
+              <div class="in-words">${numberToWords(invoice.total)}</div>
+            </div>
+          </div>
+
+          <!-- Dual Sign-Off Grid -->
+          <div class="signoff-section">
+            ${isEmployeeInvoice ? `
+            <div class="sign-block">
+              <div class="sign-label">PREPARED &amp; CLAIMED BY</div>
+              ${invoice.signatureUrl
+                ? `<img src="${invoice.signatureUrl}" style="height:36px;max-width:150px;object-fit:contain;display:block;" />`
+                : `<div class="sign-cursive">${invoice.businessName}</div>`
+              }
+              <div class="sign-line"></div>
+              <div class="sign-name">${invoice.businessName}</div>
+              <div class="sign-role">${(invoice as any).businessSubtitle || "Employee • Engineering (Permanent Staff)"}</div>
+              <div class="sign-verified"><i class="fa-solid fa-circle-check"></i> Claimant / Payee Verified</div>
+            </div>
+            ` : `<div></div>`}
+
+            <div class="sign-block" style="text-align:right;">
+              <div class="sign-label" style="text-align:right;">VERIFIED &amp; AUTHORIZED BY</div>
+              ${displaySignature
+                ? `<img src="${displaySignature}" style="height:36px;max-width:150px;object-fit:contain;display:block;margin-left:auto;" />`
+                : invoice.approvedBy
+                ? `<div style="display:flex;justify-content:flex-end;">
+                    <div class="sign-stamp-box">
+                      <div class="sign-stamp-title">• DIGITALLY AUTHORIZED •</div>
+                      <div class="sign-stamp-sub">Corporate Finance Desk • Verified</div>
+                    </div>
+                  </div>`
+                : `<div class="sign-cursive" style="justify-content:flex-end;transform-origin:bottom right;">${formatSignatoryName(signatoryEntity)}</div>`
+              }
+              <div class="sign-line sign-line-right"></div>
+              <div class="sign-name">Authorized Signatory</div>
+              ${invoice.approvedBy ? `<div class="sign-verified" style="justify-content:flex-end;"><i class="fa-solid fa-circle-check"></i> Approved by ${invoice.approvedBy}</div>` : ""}
+              <div class="sign-role" style="margin-top:5px;">${signatoryEntity}</div>
+            </div>
+          </div>
+
+          <!-- Terms & Notes -->
+          <div class="terms-box">
+            <div class="terms-item">
+              <i class="fa-solid fa-file-contract"></i>
+              <div>
+                <strong style="color:#0f172a;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;margin-right:6px;">Terms &amp; Conditions:</strong>
+                Payment is requested within ${invoice.paymentTerms || "14 business days"} of receiving this invoice statement. For inquiries or remittances, please quote reference #${invoice.invoiceNo}.
+              </div>
+            </div>
+            ${invoice.notes ? `
+              <div class="terms-item" style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;">
+                <i class="fa-solid fa-clipboard-check" style="color:#059669;"></i>
+                <div>
+                  <strong style="color:#0f172a;text-transform:uppercase;font-size:9.5px;letter-spacing:0.06em;margin-right:6px;">Notes &amp; Verified Records:</strong>
+                  ${invoice.notes}
+                </div>
+              </div>
+            ` : ""}
+          </div>
+
+          <!-- Micro Footer -->
+          <div class="micro-footer">
+            <span>Official Commercial Document • NexAce Financial Desk</span>
+            <span>Electronic Document • Legally valid without physical seal</span>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); };</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      if (printRef.current) {
+        await downloadElementAsPdf(printRef.current, {
+          fileName: `Invoice_${invoice.invoiceNo}.pdf`,
+          widthPx: 860,
+          marginMm: 6,
+        });
+      } else {
+        downloadInvoicePdf(
+          {
+            invoiceNo: invoice.invoiceNo,
+            invoiceDate: invoice.invoiceDate,
+            dueDate: invoice.dueDate,
+            customerNo: invoice.customerNo,
+            businessName: invoice.businessName || "NexAce IT Team",
+            businessSubtitle: (invoice as any).businessSubtitle || (isEmployeeInvoice ? "Employee • Engineering (Permanent Staff)" : undefined),
+            businessAddress: invoice.businessAddress,
+            businessEmail: invoice.businessEmail,
+            billedToName: invoice.billedToName || "Client",
+            billedToAddress: invoice.billedToAddress,
+            billedToEmail: invoice.billedToEmail,
+            items: invoice.items || [],
+            subtotal: invoice.subtotal || 0,
+            taxRate: invoice.taxRate,
+            taxAmount: invoice.taxAmount,
+            total: invoice.total || 0,
+            currency: invoice.currency || "INR",
+            status: invoice.status,
+            notes: invoice.notes,
+            paymentTerms: invoice.paymentTerms || "14 business days",
+            bankDetails: invoice.bankDetails,
+            paymentDetails: invoice.paymentDetails,
+            logoUrl: companyLogoUrl || (invoice as any).logoUrl,
+            signatureUrl: invoice.signatureUrl,
+            orgSignatureUrl: companySignatureUrl,
+            employeeSignatureUrl: isEmployeeInvoice ? invoice.signatureUrl : undefined,
+            approvedBy: invoice.approvedBy,
+            approvedAt: invoice.approvedAt,
+          },
+          `Invoice_${invoice.invoiceNo}.pdf`
+        );
+      }
+    } catch (err) {
+      console.error("DOM PDF export failed, falling back to direct PDF generator:", err);
+      try {
+        downloadInvoicePdf(
+          {
+            invoiceNo: invoice.invoiceNo,
+            invoiceDate: invoice.invoiceDate,
+            dueDate: invoice.dueDate,
+            customerNo: invoice.customerNo,
+            businessName: invoice.businessName || "NexAce IT Team",
+            businessSubtitle: (invoice as any).businessSubtitle || (isEmployeeInvoice ? "Employee • Engineering (Permanent Staff)" : undefined),
+            businessAddress: invoice.businessAddress,
+            businessEmail: invoice.businessEmail,
+            billedToName: invoice.billedToName || "Client",
+            billedToAddress: invoice.billedToAddress,
+            billedToEmail: invoice.billedToEmail,
+            items: invoice.items || [],
+            subtotal: invoice.subtotal || 0,
+            taxRate: invoice.taxRate,
+            taxAmount: invoice.taxAmount,
+            total: invoice.total || 0,
+            currency: invoice.currency || "INR",
+            status: invoice.status,
+            notes: invoice.notes,
+            paymentTerms: invoice.paymentTerms || "14 business days",
+            bankDetails: invoice.bankDetails,
+            paymentDetails: invoice.paymentDetails,
+            logoUrl: companyLogoUrl || (invoice as any).logoUrl,
+            signatureUrl: invoice.signatureUrl,
+            orgSignatureUrl: companySignatureUrl,
+            employeeSignatureUrl: isEmployeeInvoice ? invoice.signatureUrl : undefined,
+            approvedBy: invoice.approvedBy,
+            approvedAt: invoice.approvedAt,
+          },
+          `Invoice_${invoice.invoiceNo}.pdf`
+        );
+      } catch (fallbackErr) {
+        console.error("Fallback PDF download also failed:", fallbackErr);
+      }
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* ── Top Action Bar ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+        <div className="flex items-center gap-3 min-w-0">
+          {onClose && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="gap-1.5 font-semibold h-8 px-3 cursor-pointer hover:bg-muted text-foreground shrink-0"
+            >
+              <i className="fa-solid fa-arrow-left text-[11px]" /> Back
+            </Button>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2 truncate">
+              <i className="fa-solid fa-file-invoice text-primary text-sm" />
+              Invoice&nbsp;<span className="font-mono">#{invoice.invoiceNo}</span>
+            </h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+              Issued <strong className="text-foreground">{invoice.invoiceDate}</strong>
+              {invoice.status === "Paid" ? (
+                <> &bull; Paid{" "}
+                  <strong className="text-emerald-500">
+                    {(invoice as any).paymentDetails?.paidAt
+                      ? new Date((invoice as any).paymentDetails.paidAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })
+                      : invoice.invoiceDate}
+                  </strong>
+                </>
+              ) : (
+                <> &bull; Due <strong className="text-foreground">{invoice.dueDate}</strong>
+                  {(invoice as any).updatedAt && (
+                    <> &bull; Updated <strong className="text-foreground">{new Date((invoice as any).updatedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}</strong></>
+                  )}
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowHistoryDrawer(true)}
+            className="gap-1.5 font-bold h-8 px-3 cursor-pointer text-foreground border-border hover:bg-muted shadow-2xs"
+            title="Open comprehensive interaction history, communications, notes, and activity timeline"
+          >
+            <i className="fa-solid fa-timeline text-[11px] text-primary" /> Invoice History
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTraceModal(true)}
+            className="gap-1.5 font-bold h-8 px-3 cursor-pointer text-primary border-primary/30 hover:bg-primary/10 shadow-2xs"
+            title="Inspect full timeline audit and tracking history"
+          >
+            <i className="fa-solid fa-route text-[11px]" /> Trace Lifecycle
+          </Button>
+
+          {invoice.status === "Rejected" && onReinitiate && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onReinitiate(invoice)}
+              className="gap-1.5 font-bold h-8 px-3.5 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+              title="Pre-fill invoice to correct issues and re-submit to HR"
+            >
+              <i className="fa-solid fa-rotate-right text-[11px]" /> Fix &amp; Re-initiate
+            </Button>
+          )}
+
+          {onStatusChange && (
+            <>
+              {invoice.status === "Pending" && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => onStatusChange("Approved")}
+                    className="gap-1.5 font-bold h-8 px-3 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    title="Verify shift attendance, timesheets, and approve invoice"
+                  >
+                    <i className="fa-solid fa-clipboard-check text-[11px]" /> Verify &amp; Approve
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => {
+                      setObjections([createBlankObjection()]);
+                      setRejectModalOpen(true);
+                    }}
+                    className="gap-1.5 font-bold h-8 px-3 cursor-pointer text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    title="Reject invoice with mandatory feedback"
+                  >
+                    <i className="fa-solid fa-ban text-[11px]" /> Reject
+                  </Button>
+                </div>
+              )}
+
+              {invoice.status === "Approved" && onPaymentConfirm && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isUpdatingStatus}
+                  onClick={() => onPaymentConfirm()}
+                  className="gap-1.5 font-bold h-8 px-3.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                  title="Process payment disbursement"
+                >
+                  <i className="fa-solid fa-wallet text-[11px]" /> Process Payout
+                </Button>
+              )}
+
+              {/* If Approved and viewed by HR (onPaymentConfirm undefined), show Awaiting Payment badge */}
+              {invoice.status === "Approved" && !onPaymentConfirm && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                  <i className="fa-solid fa-clock-rotate-left text-[10px]" />
+                  <span>Verified by HR &bull; Awaiting Admin Payment</span>
+                </span>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">Status:</span>
+                <select
+                  disabled={isUpdatingStatus}
+                  value={invoice.status}
+                  onChange={(e) => {
+                    const newVal = e.target.value;
+                    if (newVal === "Paid") {
+                      if (!onPaymentConfirm) {
+                        alert("Forbidden: Only Admin or OPS can process payments. HR is authorized for attendance and timesheet verification only.");
+                        return;
+                      }
+                      if (invoice.status !== "Approved") {
+                        alert("Approval Mandatory: This invoice must be approved by an HR Partner or Admin before payment can be processed.");
+                        return;
+                      }
+                      onPaymentConfirm();
+                    } else if (newVal === "Rejected") {
+                      setObjections([createBlankObjection()]);
+                      setRejectModalOpen(true);
+                    } else {
+                      onStatusChange(newVal);
+                    }
+                  }}
+                  className="h-8 px-2.5 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer font-bold"
+                >
+                  <option value="Draft">Draft</option>
+                  <option value="Sent">Sent</option>
+                  <option value="Pending">Pending (HR Review)</option>
+                  <option value="Approved">Approved (Ready for Payout)</option>
+                  {onPaymentConfirm && (
+                    <option value="Paid" disabled={invoice.status !== "Approved"}>
+                      {invoice.status === "Approved" ? "Paid" : "Paid (Requires Approval)"}
+                    </option>
+                  )}
+                  <option value="Rejected">Rejected</option>
+                  <option value="Overdue">Overdue</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            className="gap-1.5 font-semibold h-8 px-3 cursor-pointer bg-card hover:bg-muted text-foreground border-border"
+          >
+            <i className="fa-solid fa-print text-[11px]" /> Print
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleDownloadPdf}
+            disabled={isDownloadingPdf}
+            className="gap-1.5 font-semibold h-8 px-3.5 cursor-pointer bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-70"
+          >
+            {isDownloadingPdf ? (
+              <i className="fa-solid fa-spinner fa-spin text-[11px]" />
+            ) : (
+              <i className="fa-solid fa-download text-[11px]" />
+            )}
+            {isDownloadingPdf ? "Downloading..." : "Download Invoice"}
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Visual Invoice Lifecycle Tracking Stepper ── */}
+      <div className="p-4 sm:p-5 bg-card/90 border border-border/80 rounded-2xl shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Invoice Lifecycle Pipeline &bull; {scope === "external" ? "External Client Scope" : "Internal Staff Scope"}
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {(invoice as any).revisionCount && (invoice as any).revisionCount > 0 ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                Revision #{(invoice as any).revisionCount}
+              </span>
+            ) : null}
+            <span className="text-[11px] font-mono text-muted-foreground">
+              Current: <strong className="text-foreground">{invoice.status}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* 4-Step Pipeline */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+          {/* Step 1: Submission */}
+          <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <i className="fa-solid fa-file-invoice text-emerald-600" /> 1. Generated
+              </span>
+              <i className="fa-solid fa-circle-check text-xs text-emerald-600" />
+            </div>
+            <p className="text-[10px] text-muted-foreground truncate">
+              Issued {invoice.invoiceDate}
+            </p>
+          </div>
+
+          {/* Step 2: HR Review */}
+          <div className={cn(
+            "p-3 rounded-xl border space-y-1 transition-all",
+            invoice.status === "Rejected"
+              ? "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+              : (invoice.status === "Approved" || invoice.status === "Paid")
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+              : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30"
+          )}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold flex items-center gap-1.5">
+                <i className={cn("fa-solid", invoice.status === "Rejected" ? "fa-circle-xmark text-rose-500" : (invoice.status === "Approved" || invoice.status === "Paid") ? "fa-user-check text-emerald-600" : "fa-user-clock text-amber-500")} />
+                2. HR Review
+              </span>
+              {invoice.status === "Rejected" ? (
+                <i className="fa-solid fa-circle-xmark text-xs text-rose-500" />
+              ) : (invoice.status === "Approved" || invoice.status === "Paid") ? (
+                <i className="fa-solid fa-circle-check text-xs text-emerald-600" />
+              ) : (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-600 uppercase">
+                  Pending
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] opacity-90 truncate">
+              {invoice.status === "Rejected"
+                ? `Rejected by ${invoice.rejectedBy || "HR"}`
+                : (invoice.status === "Approved" || invoice.status === "Paid")
+                ? `Verified by ${invoice.approvedBy || "HR"}`
+                : "Awaiting Timesheet Audit"}
+            </p>
+          </div>
+
+          {/* Step 3: Admin Payout */}
+          <div className={cn(
+            "p-3 rounded-xl border space-y-1 transition-all",
+            invoice.status === "Paid"
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+              : invoice.status === "Approved"
+              ? "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-1 ring-sky-500/30"
+              : "border-border/60 bg-muted/30 text-muted-foreground opacity-60"
+          )}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold flex items-center gap-1.5">
+                <i className={cn("fa-solid", invoice.status === "Paid" ? "fa-credit-card text-emerald-600" : invoice.status === "Approved" ? "fa-wallet text-sky-600" : "fa-clock text-muted-foreground")} />
+                3. Admin Payout
+              </span>
+              {invoice.status === "Paid" ? (
+                <i className="fa-solid fa-circle-check text-xs text-emerald-600" />
+              ) : invoice.status === "Approved" ? (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-sky-500/20 text-sky-600 uppercase">
+                  Ready
+                </span>
+              ) : null}
+            </div>
+            <p className="text-[10px] opacity-90 truncate">
+              {invoice.status === "Paid"
+                ? `Paid via ${invoice.paymentDetails?.method || "Bank"}`
+                : invoice.status === "Approved"
+                ? "Authorized & Ready"
+                : "Requires HR Approval"}
+            </p>
+          </div>
+
+          {/* Step 4: Settled */}
+          <div className={cn(
+            "p-3 rounded-xl border space-y-1 transition-all",
+            invoice.status === "Paid"
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+              : "border-border/60 bg-muted/30 text-muted-foreground opacity-60"
+          )}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold flex items-center gap-1.5">
+                <i className="fa-solid fa-circle-check text-emerald-600" /> 4. Settled
+              </span>
+              {invoice.status === "Paid" && (
+                <i className="fa-solid fa-circle-check text-xs text-emerald-600" />
+              )}
+            </div>
+            <p className="text-[10px] opacity-90 truncate">
+              {invoice.status === "Paid" ? "Settled & Receipt Attached" : "Pending Disbursement"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Status Feedback Alerts ── */}
+      {invoice.status === "Rejected" && (
+        <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl space-y-3 text-xs text-rose-800 dark:text-rose-200 shadow-2xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <i className="fa-solid fa-circle-xmark text-rose-600 dark:text-rose-400 mt-0.5 text-base shrink-0" />
+              <div>
+                <p className="font-bold text-sm text-rose-900 dark:text-rose-100">
+                  Invoice Returned for Revision {invoice.rejectedBy ? `by ${invoice.rejectedBy}` : ""}
+                </p>
+                <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                  {(invoice.objections && invoice.objections.length > 0)
+                    ? `${invoice.objections.length} issue${invoice.objections.length !== 1 ? "s" : ""} flagged by reviewer. Please resolve the objections below before resubmitting.`
+                    : "Please review the feedback below and rectify before resubmitting."}
+                </p>
+              </div>
+            </div>
+            {onReinitiate && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => onReinitiate(invoice)}
+                className="gap-1.5 font-bold h-8 px-3.5 cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shrink-0 shadow-xs"
+              >
+                <i className="fa-solid fa-rotate-right text-[11px]" /> Fix &amp; Re-initiate
+              </Button>
+            )}
+          </div>
+
+          {/* Itemized Objections */}
+          {(invoice.objections && invoice.objections.length > 0) ? (
+            <div className="space-y-2 pt-1 border-t border-rose-200/80 dark:border-rose-900/60">
+              {invoice.objections.map((obj, oIdx) => (
+                <div
+                  key={oIdx}
+                  className="p-3 rounded-xl bg-white/70 dark:bg-card/70 border border-rose-200/60 dark:border-rose-900/40 text-foreground space-y-1.5 shadow-2xs"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span className="font-bold text-xs text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-[10px] flex items-center justify-center font-black">
+                        {oIdx + 1}
+                      </span>
+                      {obj.category}
+                    </span>
+                    {obj.itemRef && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 font-semibold border border-rose-300/40">
+                        Disputed Item: {obj.itemRef}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed pl-5">
+                    {obj.remark}
+                  </p>
+                  {obj.attachmentUrl && (
+                    <div className="pl-5 pt-1 flex items-center gap-2">
+                      <a
+                        href={obj.attachmentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-md border border-rose-200 dark:border-rose-900/40"
+                      >
+                        <i className="fa-solid fa-paperclip text-[10px]" />
+                        <span>View Attachment: {obj.attachmentName || "Proof Document"}</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1 pl-7">
+              <p className="text-xs text-rose-700 dark:text-rose-300">
+                <strong>Reason Category:</strong> {invoice.rejectionReason || "No explanation provided."}
+              </p>
+              {invoice.rejectionRemark && (
+                <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-800 dark:text-rose-200">
+                  <strong>Reviewer Remarks:</strong> {invoice.rejectionRemark}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Rejection Feedback Modal ── */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="px-5 py-3.5 border-b border-border flex items-center justify-between bg-rose-500/10 shrink-0">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <i className="fa-solid fa-ban text-lg" />
+                <h3 className="font-bold text-sm sm:text-base text-foreground">Reject Invoice with Structured Feedback</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground cursor-pointer text-sm"
+              >
+                <i className="fa-solid fa-xmark text-base" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Submit itemized objections explaining why this invoice is returned. Tag disputed line items or attendance shifts and optionally attach proof screenshots for the submitter.
+              </p>
+
+              <div className="space-y-3.5">
+                {objections.map((obj, index) => {
+                  const targetChoices = getItemChoicesForDetails(invoice);
+                  const isCustomTarget = obj.itemRef === "__CUSTOM__";
+
+                  return (
+                    <div
+                      key={obj.id}
+                      className="border border-border/80 rounded-xl bg-card p-4 space-y-3 relative shadow-2xs group hover:border-rose-400/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-[11px] flex items-center justify-center border border-rose-500/20">
+                            {index + 1}
+                          </span>
+                          <span className="font-bold text-xs text-foreground">
+                            Objection #{index + 1}
+                          </span>
+                        </div>
+                        {objections.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setObjections((prev) => prev.filter((o) => o.id !== obj.id));
+                            }}
+                            className="text-[11px] text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 cursor-pointer hover:underline"
+                          >
+                            <i className="fa-solid fa-trash-can text-[10px]" />
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold text-foreground block mb-1">
+                            Reason Category <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={obj.category}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, category: val } : o));
+                            }}
+                            className="w-full text-xs h-9 px-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                          >
+                            <option value="Timesheet Hours Discrepancy">Timesheet Hours Discrepancy</option>
+                            <option value="Attendance & Punch Clock Mismatch">Attendance &amp; Punch Clock Mismatch</option>
+                            <option value="Incorrect Billable Rate or Calculation">Incorrect Billable Rate or Calculation</option>
+                            <option value="Missing Required Documentation or Proof">Missing Required Documentation or Proof</option>
+                            <option value="Project / Task Scope Not Approved">Project / Task Scope Not Approved</option>
+                            <option value="Duplicate Invoice Submission">Duplicate Invoice Submission</option>
+                            <option value="Other / Custom Policy Violation">Other / Custom Policy Violation</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-foreground block mb-1">
+                            Disputed Line Item / Shift / Task
+                          </label>
+                          <select
+                            value={obj.itemRef}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, itemRef: val } : o));
+                            }}
+                            className="w-full text-xs h-9 px-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium truncate"
+                          >
+                            {targetChoices.map((choice, cIdx) => (
+                              <option key={cIdx} value={choice.value}>
+                                {choice.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {isCustomTarget && (
+                        <div>
+                          <label className="text-[11px] font-bold text-foreground block mb-1">
+                            Specify Item / Shift Name
+                          </label>
+                          <input
+                            type="text"
+                            value={obj.customItemRef || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, customItemRef: val } : o));
+                            }}
+                            placeholder="e.g. October 14 Overtime Shift or Deliverable Task A"
+                            className="w-full text-xs h-8 px-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-rose-500"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-foreground">
+                            Actionable Remarks &bull; Explanation for Submitter <span className="text-rose-500">*</span>
+                          </label>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {obj.remark.trim().length} chars
+                          </span>
+                        </div>
+                        <textarea
+                          value={obj.remark}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, remark: val } : o));
+                          }}
+                          placeholder="e.g. Discrepancy on punch clock: logged 8 hrs but biometric showed 6.5 hrs. Please adjust hours to match attendance."
+                          rows={2}
+                          className="w-full p-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-foreground flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-1.5">
+                            <i className="fa-solid fa-paperclip text-muted-foreground text-[10px]" />
+                            Attach Issue Proof / Screenshot (Optional)
+                          </span>
+                          {obj.attachmentUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, attachmentUrl: "", attachmentName: "" } : o));
+                              }}
+                              className="text-[10px] text-rose-500 hover:underline cursor-pointer"
+                            >
+                              Remove Attachment
+                            </button>
+                          )}
+                        </label>
+
+                        {!obj.attachmentUrl ? (
+                          <label className="flex items-center gap-2 p-2 border border-dashed border-border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors text-xs text-muted-foreground">
+                            <i className="fa-solid fa-cloud-arrow-up text-primary text-sm" />
+                            <span className="text-[11px]">Upload screenshot or proof PDF (max 5MB)</span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 5 * 1024 * 1024) {
+                                  alert("File size must be under 5MB");
+                                  return;
+                                }
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setObjections((prev) => prev.map((o) => o.id === obj.id ? {
+                                    ...o,
+                                    attachmentUrl: reader.result as string,
+                                    attachmentName: file.name,
+                                  } : o));
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
+                        ) : (
+                          <div className="flex items-center gap-2.5 p-2 bg-muted/40 border border-border rounded-lg">
+                            {obj.attachmentUrl.startsWith("data:image/") ? (
+                              <img
+                                src={obj.attachmentUrl}
+                                alt="Proof Preview"
+                                className="w-10 h-10 object-cover rounded-md border border-border shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0 border border-rose-500/20">
+                                <i className="fa-solid fa-file-pdf text-base" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-foreground truncate">
+                                {obj.attachmentName || "Attached Proof"}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">Ready to attach</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setObjections((prev) => prev.map((o) => o.id === obj.id ? { ...o, attachmentUrl: "", attachmentName: "" } : o));
+                              }}
+                              className="w-6 h-6 rounded-md hover:bg-rose-500/10 text-rose-500 flex items-center justify-center cursor-pointer shrink-0"
+                            >
+                              <i className="fa-solid fa-xmark text-xs" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setObjections((prev) => [...prev, createBlankObjection()]);
+                }}
+                className="w-full py-2.5 border-2 border-dashed border-border rounded-xl hover:border-primary/50 hover:bg-primary/5 text-primary text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <i className="fa-solid fa-plus text-xs" />
+                Add Another Objection
+              </button>
+            </div>
+
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground font-medium">
+                {objections.length} objection{objections.length !== 1 ? "s" : ""} configured
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRejectModalOpen(false)}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={objections.some((o) => !o.remark.trim()) || isUpdatingStatus}
+                  onClick={() => {
+                    if (objections.some((o) => !o.remark.trim())) {
+                      alert("Please provide actionable remarks for all objections");
+                      return;
+                    }
+                    const formatted = objections.map((o) => ({
+                      category: o.category,
+                      itemRef: o.itemRef === "__CUSTOM__" ? (o.customItemRef?.trim() || "Custom Item") : o.itemRef,
+                      remark: o.remark.trim(),
+                      attachmentUrl: o.attachmentUrl || "",
+                      attachmentName: o.attachmentName || "",
+                    }));
+                    if (onStatusChange) {
+                      onStatusChange("Rejected", formatted[0].category, formatted[0].remark, formatted);
+                      setRejectModalOpen(false);
+                    }
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer gap-1.5 disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-ban text-[11px]" />
+                  Confirm Rejection ({objections.length})
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lifecycle Trace History Modal ── */}
+      {showTraceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-card border border-border rounded-2xl p-6 max-w-2xl w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <i className="fa-solid fa-route text-sm" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">
+                    Lifecycle Audit Trace &bull; {invoice.invoiceNo}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Chronological event trail and verified signatures
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTraceModal(false)}
+                className="text-muted-foreground hover:text-foreground cursor-pointer text-sm"
+              >
+                <i className="fa-solid fa-xmark text-base" />
+              </button>
+            </div>
+
+            {/* Event Trail */}
+            <div className="space-y-4 py-2">
+              {(invoice.timeline && invoice.timeline.length > 0) ? (
+                <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                  {invoice.timeline.map((evt, idx) => (
+                    <div key={idx} className="relative space-y-1">
+                      <span className={cn(
+                        "absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-background",
+                        evt.stage === "PAID" ? "bg-emerald-500" :
+                        evt.stage === "HR_APPROVED" || evt.stage === "APPROVED" ? "bg-emerald-500" :
+                        evt.stage === "HR_REJECTED" || evt.stage === "REJECTED" ? "bg-rose-500" :
+                        evt.stage === "RE_INITIATED" ? "bg-amber-500" : "bg-primary"
+                      )} />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground">
+                          {evt.stage === "SUBMITTED" ? "Invoice Generated & Submitted" :
+                           evt.stage === "HR_APPROVED" ? "Verified & Approved by HR" :
+                           evt.stage === "APPROVED" ? "Invoice Approved" :
+                           evt.stage === "HR_REJECTED" ? "Rejected by HR" :
+                           evt.stage === "REJECTED" ? "Invoice Rejected" :
+                           evt.stage === "RE_INITIATED" ? "Corrected & Re-initiated by User" :
+                           evt.stage === "PAID" ? "Payment Processed & Settled" : evt.stage}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground">
+                          {new Date(evt.timestamp).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Actor: <strong className="text-foreground">{evt.actorName}</strong> ({evt.actorRole})
+                      </p>
+                      {evt.note && (
+                        <p className={cn(
+                          "text-xs p-2.5 rounded-xl border font-medium mt-1.5",
+                          evt.stage === "HR_REJECTED" || evt.stage === "REJECTED"
+                            ? "bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300"
+                            : "bg-muted/40 border-border text-foreground"
+                        )}>
+                          {evt.note}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-muted/30 border border-border rounded-xl text-xs space-y-1">
+                    <p className="font-bold text-foreground">Stage 1: Generated &amp; Submitted</p>
+                    <p className="text-muted-foreground">Issued on {invoice.invoiceDate} by {invoice.businessName || "Staff Member"}.</p>
+                  </div>
+                  {invoice.approvedBy && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs space-y-1">
+                      <p className="font-bold text-emerald-700 dark:text-emerald-400">Stage 2: HR Attendance &amp; Timesheets Verified</p>
+                      <p className="text-muted-foreground">Approved by {invoice.approvedBy} on {invoice.approvedAt ? new Date(invoice.approvedAt).toLocaleDateString("en-IN") : "recently"}.</p>
+                    </div>
+                  )}
+                  {invoice.status === "Paid" && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs space-y-1">
+                      <p className="font-bold text-emerald-700 dark:text-emerald-400">Stage 3: Admin Payout Executed</p>
+                      <p className="text-muted-foreground">Disbursed via {invoice.paymentDetails?.method || "Bank"}.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-border">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setShowTraceModal(false)}
+                className="cursor-pointer"
+              >
+                Close Audit View
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {invoice.status === "Rejected" && (
+        <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 dark:text-rose-200 shadow-2xs">
+          <i className="fa-solid fa-triangle-exclamation text-rose-600 dark:text-rose-400 mt-0.5 text-sm shrink-0" />
+          <div className="space-y-1">
+            <p className="font-bold">Invoice Rejected {invoice.rejectedBy ? `by ${invoice.rejectedBy}` : ""}</p>
+            <p className="text-[11px] text-rose-700 dark:text-rose-300">
+              <strong>Category:</strong> {invoice.rejectionReason || "No explanation provided."}
+            </p>
+            {invoice.rejectionRemark && (
+              <p className="text-[11px] text-rose-800 dark:text-rose-200">
+                <strong>Remarks:</strong> {invoice.rejectionRemark}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {invoice.status === "Approved" && (
+        <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-800 dark:text-emerald-200 shadow-2xs">
+          <i className="fa-solid fa-check-double text-emerald-600 dark:text-emerald-400 mt-0.5 text-sm shrink-0" />
+          <div className="space-y-0.5">
+            <p className="font-bold">Authorized &amp; Approved for Payment</p>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+              Approved by <strong>{invoice.approvedBy || "HR/Admin"}</strong>{invoice.approverRole ? ` (${invoice.approverRole})` : ""} on {invoice.approvedAt ? new Date(invoice.approvedAt).toLocaleDateString("en-IN") : "recently"}. Attached timesheets are confirmed.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main Invoice Paper Card ── */}
+      <div
+        ref={printRef}
+        className="bg-card border border-border/80 rounded-2xl shadow-xl max-w-5xl mx-auto transition-all relative overflow-hidden"
+      >
+        {/* Executive top accent brand stripe */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-500" />
+
+        <div className="p-5 sm:p-7 md:p-8 space-y-5">
+          {/* ── Invoice Header ── */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 pb-5 border-b border-border/70">
+            <div className="flex items-center gap-4">
+              {companyLogoUrl ? (
+                <img
+                  src={companyLogoUrl}
+                  alt="Organization Logo"
+                  className="w-13 h-13 rounded-full object-contain border border-border/80 bg-background p-1.5 shadow-xs"
+                />
+              ) : (
+                <div className="w-13 h-13 rounded-full border-2 border-teal-500/80 bg-teal-50/70 dark:bg-teal-950/40 flex items-center justify-center relative shadow-xs">
+                  <span className="font-black text-slate-900 dark:text-white text-xs tracking-wider">CRM</span>
+                  <span className="absolute -top-0.5 -left-0.5 w-1.5 h-1.5 rounded-full bg-teal-600" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-teal-600" />
+                </div>
+              )}
+              <div>
+                <span className="text-2xl sm:text-3xl font-black tracking-tight text-foreground block">
+                  {invoice.businessName || "Ashish Sharma"}
+                </span>
+                <span className="block text-[11px] font-extrabold text-muted-foreground uppercase tracking-[0.12em] mt-1">
+                  {headerSubtitle}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 sm:min-w-[210px] text-right space-y-1 shadow-2xs">
+              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/80 block">
+                {isEmployeeInvoice ? "Employee Invoice" : "Commercial Invoice"}
+              </span>
+              <div className="text-base sm:text-lg font-black font-mono text-foreground tracking-tight">
+                #{invoice.invoiceNo}
+              </div>
+            </div>
+          </div>
+
+          {/* ── 3-Column Flat Info Section matching PDF ── */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-1">
+            {/* Col 1: Invoice Details */}
+            <div className="space-y-2 text-xs">
+              <h4 className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-2.5">
+                INVOICE DETAILS
+              </h4>
+              <div className="flex items-center justify-between sm:justify-start sm:gap-6">
+                <span className="text-muted-foreground w-20 shrink-0">Issued:</span>
+                <span className="font-bold text-foreground font-mono">{invoice.invoiceDate}</span>
+              </div>
+              {invoice.status === "Paid" ? (
+                <div className="flex items-center justify-between sm:justify-start sm:gap-6">
+                  <span className="text-muted-foreground w-20 shrink-0">Paid Date:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    {(invoice as any).paymentDetails?.paidAt
+                      ? new Date((invoice as any).paymentDetails.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                      : invoice.invoiceDate}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between sm:justify-start sm:gap-6">
+                  <span className="text-muted-foreground w-20 shrink-0">Due Date:</span>
+                  <span className="font-bold text-foreground font-mono">{invoice.dueDate}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between sm:justify-start sm:gap-6">
+                <span className="text-muted-foreground w-20 shrink-0">Ref #:</span>
+                <span className="font-bold text-foreground font-mono truncate">{invoice.customerNo || `REF-${invoice.invoiceNo}`}</span>
+              </div>
+            </div>
+
+            {/* Col 2: Invoice From */}
+            <div className="space-y-1 text-xs">
+              <h4 className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-2.5">
+                INVOICE FROM
+              </h4>
+              <p className="font-bold text-sm text-foreground">{invoice.businessName}</p>
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {(invoice as any).businessSubtitle || invoice.businessAddress || "Employee • Engineering"}
+              </p>
+              {invoice.businessEmail && (
+                <p className="text-sky-600 dark:text-sky-400 font-mono pt-1">
+                  {invoice.businessEmail}
+                </p>
+              )}
+            </div>
+
+            {/* Col 3: Invoice To */}
+            <div className="space-y-1 text-xs">
+              <h4 className="text-[11px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-2.5">
+                INVOICE TO
+              </h4>
+              <p className="font-bold text-sm text-foreground">{invoice.billedToName}</p>
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                {invoice.billedToAddress || "Building no 1254, Tower B Zone, Gurgaon, Noida, 110078, India"}
+              </p>
+              {invoice.billedToEmail && (
+                <p className="text-sky-600 dark:text-sky-400 font-mono pt-1">
+                  {invoice.billedToEmail}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Products / Services Table ── */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+              Products / Service Items
+            </h3>
+
+            <div className="border border-border/80 rounded-2xl overflow-hidden shadow-xs bg-card">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px] text-left">
+                  <thead>
+                    <tr className="bg-muted/60 dark:bg-muted/40 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                      <th className="py-3.5 px-4 w-12 text-center">#</th>
+                      <th className="py-3.5 px-4">Item &amp; Description</th>
+                      <th className="py-3.5 px-4 text-center w-28">Qty / Hrs</th>
+                      <th className="py-3.5 px-4 text-right w-36">Unit Rate</th>
+                      <th className="py-3.5 px-4 text-right w-40">Total Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40 text-xs">
+                    {invoice.items.map((item, idx) => {
+                      // Smart split for items with dates/period details like [2026-09-01 to 2026-09-30]
+                      const bracketMatch = item.description.match(/^(.*?)\s*(\[.*?\]|\(.*?\))\s*$/);
+                      const mainTitle = bracketMatch ? bracketMatch[1] : item.description;
+                      const subPeriod = bracketMatch ? bracketMatch[2] : null;
+
+                      return (
+                        <tr
+                          key={idx}
+                          className={cn(
+                            "transition-colors hover:bg-muted/30",
+                            idx % 2 === 1 && "bg-muted/15"
+                          )}
+                        >
+                          <td className="py-4 px-4 text-center">
+                            <span className="w-6 h-6 rounded-full bg-muted/80 border border-border/60 flex items-center justify-center text-[10px] font-bold text-muted-foreground mx-auto font-mono">
+                              {idx + 1}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="font-bold text-foreground text-sm leading-snug">{mainTitle}</div>
+                            {subPeriod && (
+                              <div className="text-xs text-muted-foreground mt-0.5 font-medium">
+                                {subPeriod.replace(/[\[\]]/g, "")}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            <span className="font-mono font-semibold text-foreground text-xs bg-muted/50 px-2.5 py-1 rounded-md border border-border/40">
+                              {item.quantity}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <span className="font-mono text-muted-foreground text-xs">{symbol}{item.unitPrice.toLocaleString()}</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <span className="font-mono font-extrabold text-foreground text-sm">{symbol}{item.amount.toLocaleString()}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Shift Clock & Timesheet Audit Breakdown (Admin View) ── */}
+          {(invoice.shiftAttendance?.records?.length || invoice.timesheetEntries?.records?.length) ? (
+            <div className={cn("space-y-4", !invoice.timesheetEntries?.records?.length && "pdf-exclude-shift")}>
+              {/* Shift Attendance Breakdown */}
+              {invoice.shiftAttendance && invoice.shiftAttendance.records.length > 0 && (
+                <div className="pdf-exclude-shift space-y-3">
+                  <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <i className="fa-solid fa-clock-rotate-left text-primary" /> Shift Clock &amp; Attendance Breakdown
+                  </h3>
+                  <div className="border border-border/80 rounded-2xl overflow-hidden shadow-xs">
+                    <table className="w-full min-w-[500px] text-left text-xs">
+                      <thead className="bg-muted/50 border-b border-border font-bold text-muted-foreground uppercase text-[10px]">
+                        <tr>
+                          <th className="py-3 px-4">Date</th>
+                          <th className="py-3 px-3">Clock In</th>
+                          <th className="py-3 px-3">Clock Out</th>
+                          <th className="py-3 px-3 text-right">Hours</th>
+                          <th className="py-3 px-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {invoice.shiftAttendance.records.map((rec, idx) => (
+                          <tr key={idx} className="hover:bg-muted/10 transition-colors">
+                            <td className="py-2.5 px-4 font-mono font-semibold text-foreground">{rec.date}</td>
+                            <td className="py-2.5 px-3 text-muted-foreground">{rec.clockIn}</td>
+                            <td className="py-2.5 px-3 text-muted-foreground">
+                              {rec.clockOut === "Working..." ? (
+                                <span className="text-emerald-500 font-semibold">Active</span>
+                              ) : rec.clockOut}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">{rec.totalHours}h</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                {rec.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Timesheet Entries Breakdown */}
+              {invoice.timesheetEntries && invoice.timesheetEntries.records.length > 0 && (
+                <div className="border border-border/80 rounded-2xl overflow-hidden shadow-xs">
+                  <div className="px-4 py-3 bg-primary/5 border-b border-border flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <i className="fa-solid fa-table-list text-primary text-xs" /> Project Timesheets
+                    </span>
+                    <div className="flex items-center gap-3 text-xs font-semibold">
+                      <span className="text-muted-foreground">{invoice.timesheetEntries.totalEntries} entries</span>
+                      <span className="text-foreground font-mono">{invoice.timesheetEntries.totalHours} hrs</span>
+                    </div>
+                  </div>
+                  <table className="w-full min-w-[500px] text-left text-xs">
+                    <thead className="bg-muted/50 border-b border-border font-bold text-muted-foreground uppercase text-[10px]">
+                      <tr>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-3">Project</th>
+                        <th className="py-3 px-3">Task</th>
+                        <th className="py-3 px-3 text-right">Hours</th>
+                        <th className="py-3 px-3 text-center">Billable</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {invoice.timesheetEntries.records.map((entry, idx) => (
+                        <tr key={idx} className="hover:bg-muted/10 transition-colors">
+                          <td className="py-2.5 px-4 font-mono font-semibold text-foreground">{entry.date}</td>
+                          <td className="py-2.5 px-3 font-medium text-foreground">{entry.projectName || "—"}</td>
+                          <td className="py-2.5 px-3 text-muted-foreground max-w-[200px] truncate">{entry.taskDescription || "—"}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground">{entry.hours}h</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                              entry.billable
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-muted text-muted-foreground border-border"
+                            )}>
+                              {entry.billable ? "Billable" : "Non-Bill"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {/* ── Bottom 2-Column: Bank Details & Financial Summary ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            {/* Left: Dynamic Payment / Bank Details */}
+            {invoice.status === "Paid" && invoice.paymentDetails?.method ? (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 p-5 shadow-xs space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20">
+                  <h4 className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                    Payment Received ({invoice.paymentDetails.method})
+                  </h4>
+                  <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                    Settled
+                  </span>
+                </div>
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-border/25">
+                    <span className="text-muted-foreground">Payment Method</span>
+                    <span className="font-bold text-foreground">
+                      {invoice.paymentDetails.method === "Cash" ? "Cash Settlement" : invoice.paymentDetails.method}
+                    </span>
+                  </div>
+
+                  {invoice.paymentDetails.method === "UPI" && (
+                    <>
+                      {(invoice.paymentDetails as any).fromUpiId && (
+                        <div className="flex justify-between items-center py-1 border-b border-border/25">
+                          <span className="text-muted-foreground">Paid From UPI</span>
+                          <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2.5 py-0.5 rounded-md border border-sky-500/20">
+                            {(invoice.paymentDetails as any).fromUpiId}
+                          </span>
+                        </div>
+                      )}
+                      {(invoice.paymentDetails as any).toUpiId ? (
+                        <div className="flex justify-between items-center py-1 border-b border-border/25">
+                          <span className="text-muted-foreground">Paid To UPI</span>
+                          <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/20">
+                            {(invoice.paymentDetails as any).toUpiId}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center py-1 border-b border-border/25">
+                          <span className="text-muted-foreground">UPI ID</span>
+                          <span className="font-mono text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 px-2.5 py-0.5 rounded-md border border-violet-500/20">
+                            {invoice.paymentDetails.upiId || invoice.bankDetails?.upiId || "nexace@okaxis"}
+                          </span>
+                        </div>
+                      )}
+                      {invoice.paymentDetails.transactionId && (
+                        <div className="flex justify-between items-center py-1 border-b border-border/25">
+                          <span className="text-muted-foreground">Transaction ID</span>
+                          <span className="font-mono text-xs font-semibold text-foreground bg-muted/80 px-2.5 py-0.5 rounded-md border border-border/60">
+                            {invoice.paymentDetails.transactionId}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {invoice.paymentDetails.method === "Bank Transfer" && (
+                    <>
+                      <div className="flex justify-between items-center py-1 border-b border-border/25">
+                        <span className="text-muted-foreground">Bank Name</span>
+                        <span className="font-bold text-foreground">{invoice.bankDetails?.bankName || "Corporate Banking Partner"}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-border/25">
+                        <span className="text-muted-foreground">Account Number</span>
+                        <span className="font-mono text-xs font-bold text-foreground">{invoice.bankDetails?.accountNo || "782459739212"}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-border/25">
+                        <span className="text-muted-foreground">IFSC / Code</span>
+                        <span className="font-mono text-xs font-bold text-foreground">{invoice.bankDetails?.ifscCode || "NEXA0004128"}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {invoice.paymentDetails.method === "Cash" && (
+                    <div className="flex justify-between items-center py-1 border-b border-border/25">
+                      <span className="text-muted-foreground">Settlement</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">Verified &amp; Settled in Cash</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted-foreground">Paid On</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                      {(invoice as any).paymentDetails?.paidAt
+                        ? new Date((invoice as any).paymentDetails.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                        : invoice.invoiceDate}
+                    </span>
+                  </div>
+
+                  {(invoice.approvedBy || invoice.approvedAt) && (
+                    <div className="pt-2 mt-1 border-t border-emerald-500/20 space-y-2">
+                      {invoice.approvedBy && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Approved By</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                            <i className="fa-solid fa-circle-check text-[10px]" />
+                            {invoice.approvedBy}
+                          </span>
+                        </div>
+                      )}
+                      {invoice.approvedAt && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Approved On</span>
+                          <span className="font-semibold text-foreground">
+                            {new Date(invoice.approvedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border/80 bg-muted/20 dark:bg-slate-900/40 p-4 sm:p-5 shadow-xs space-y-3">
+                <div className="pb-3 border-b border-border/60 flex items-center justify-between">
+                  <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <i className="fa-solid fa-building-columns text-primary text-xs" />
+                    Bank &amp; Payment Details
+                  </h4>
+                  {(invoice.bankDetails?.upiId || invoice.userUpiId) && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      UPI Configured
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2.5 text-xs">
+                  {invoice.bankDetails?.accountName && (
+                    <div className="flex justify-between items-center py-1 border-b border-border/25">
+                      <span className="text-muted-foreground">Beneficiary Name</span>
+                      <span className="font-bold text-foreground">{invoice.bankDetails.accountName}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-1 border-b border-border/25">
+                    <span className="text-muted-foreground">Bank Name</span>
+                    <span className="font-bold text-foreground">{invoice.bankDetails?.bankName || "Corporate Banking Partner"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-border/25">
+                    <span className="text-muted-foreground">Account Number</span>
+                    <span className="font-mono text-xs font-bold text-foreground">{invoice.bankDetails?.accountNo || "—"}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-border/25">
+                    <span className="text-muted-foreground">IFSC / Swift Code</span>
+                    <span className="font-mono text-xs font-bold text-foreground">{invoice.bankDetails?.ifscCode || "—"}</span>
+                  </div>
+                  {invoice.bankDetails?.branch && (
+                    <div className="flex justify-between items-center py-1 border-b border-border/25">
+                      <span className="text-muted-foreground">Branch</span>
+                      <span className="font-medium text-foreground">{invoice.bankDetails.branch}</span>
+                    </div>
+                  )}
+                  {(invoice.bankDetails?.upiId || invoice.userUpiId) && (
+                    <div className="flex justify-between items-center py-1 border-b border-border/25">
+                      <span className="text-muted-foreground">UPI ID / VPA</span>
+                      <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                        {invoice.bankDetails?.upiId || invoice.userUpiId}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted-foreground">Payment Reference</span>
+                    <span className="font-mono text-xs font-extrabold text-primary">{invoice.invoiceNo}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Right: Financial Summary */}
+            <div className="rounded-2xl border border-border/80 bg-muted/20 dark:bg-slate-900/40 p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="pb-3 border-b border-border/60">
+                <h4 className="text-xs font-black text-foreground uppercase tracking-wider">
+                  Financial Summary
+                </h4>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center py-1.5 border-b border-border/25">
+                  <span className="text-muted-foreground">Subtotal Amount</span>
+                  <span className="font-mono text-xs font-bold text-foreground">{symbol}{invoice.subtotal.toLocaleString()}</span>
+                </div>
+                {invoice.taxRate > 0 && (
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/25">
+                    <span className="text-muted-foreground">Tax / VAT ({invoice.taxRate}%)</span>
+                    <span className="font-mono text-xs font-bold text-foreground">+{symbol}{invoice.taxAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                {Boolean(invoice.discount && invoice.discount > 0) && (
+                  <div className="flex justify-between items-center py-1.5 border-b border-border/25">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Discount Applied</span>
+                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">-{symbol}{(invoice.discount || 0).toLocaleString()}</span>
+                  </div>
+                )}
+
+                {/* Total Amount clean row matching PDF */}
+                <div className="pt-3 flex items-center justify-between border-t border-border/60">
+                  <span className="text-base sm:text-lg font-black text-emerald-700 dark:text-emerald-400">
+                    Total Amount:
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 dark:text-emerald-400 tracking-tight">
+                    {symbol}{invoice.total.toLocaleString()}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground text-right italic pt-1 font-medium">
+                  {numberToWords(invoice.total)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Dual Sign-Off Grid ── */}
+          <div className="pt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-8 border-t border-border/70">
+            {isEmployeeInvoice ? (
+              <div className="flex flex-col items-start space-y-1.5">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                  PREPARED &amp; CLAIMED BY
+                </p>
+                <div className="min-h-[76px] sm:min-h-[84px] flex items-end pb-1 overflow-visible">
+                  {invoice.signatureUrl ? (
+                    <img
+                      src={invoice.signatureUrl}
+                      alt="Claimant Signature"
+                      className="h-14 max-w-[200px] object-contain mix-blend-multiply dark:mix-blend-screen"
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        fontFamily: "'Alex Brush', 'Great Vibes', 'Dancing Script', cursive",
+                        fontSize: "58px",
+                        lineHeight: "1.05",
+                        transform: "rotate(-2.5deg)",
+                        transformOrigin: "bottom left",
+                      }}
+                      className="text-slate-900 dark:text-slate-100 font-normal tracking-wide select-none inline-block pl-1 transition-transform"
+                    >
+                      {invoice.businessName || "Ashish Sharma"}
+                    </span>
+                  )}
+                </div>
+                <div className="w-56 sm:w-64 border-b-2 border-slate-700/80 dark:border-slate-300/80 my-1" />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-extrabold text-foreground">{invoice.businessName}</p>
+                  <p className="text-xs text-muted-foreground">{(invoice as any).businessSubtitle || "Employee • Engineering (Permanent Staff)"}</p>
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                    • Claimant / Payee Verified
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex flex-col items-end text-right space-y-1.5">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                VERIFIED &amp; AUTHORIZED BY
+              </p>
+              <div className="min-h-[76px] sm:min-h-[84px] flex items-end justify-end pb-1 overflow-visible">
+                {displaySignature ? (
+                  <img
+                    src={displaySignature}
+                    alt="Authorized Signature"
+                    className="h-14 max-w-[200px] object-contain mix-blend-multiply dark:mix-blend-screen"
+                  />
+                ) : (
+                  <span
+                    style={{
+                      fontFamily: "'Alex Brush', 'Great Vibes', 'Dancing Script', cursive",
+                      fontSize: "58px",
+                      lineHeight: "1.05",
+                      transform: "rotate(-2deg)",
+                      transformOrigin: "bottom right",
+                    }}
+                    className="text-slate-900 dark:text-slate-100 font-normal tracking-wide select-none inline-block pr-1 transition-transform"
+                  >
+                    {formatSignatoryName(signatoryEntity)}
+                  </span>
+                )}
+              </div>
+              <div className="w-56 sm:w-64 border-b-2 border-slate-700/80 dark:border-slate-300/80 my-1 ml-auto" />
+              <div className="space-y-0.5">
+                <p className="text-sm font-extrabold text-foreground">Authorized Signatory</p>
+                {invoice.approvedBy && (
+                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1.5 mt-1">
+                    • Approved by {invoice.approvedBy}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">{signatoryEntity}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Terms & Conditions + Notes ── */}
+          <div className="rounded-xl border border-border/80 bg-muted/15 dark:bg-slate-900/30 p-3.5 sm:p-4 space-y-2">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <strong className="text-foreground uppercase tracking-wider text-[10px] font-black mr-1.5">TERMS &amp; CONDITIONS:</strong>
+              Payment is requested within {invoice.paymentTerms || "14 business days"} of receiving this invoice statement. For inquiries or remittances, please quote invoice reference <strong className="font-mono text-foreground font-bold">#{invoice.invoiceNo}</strong>.
+            </p>
+
+            {invoice.notes && (
+              <p className="text-xs text-muted-foreground leading-relaxed pt-2 border-t border-border/40">
+                <strong className="text-foreground uppercase tracking-wider text-[10px] font-black mr-1.5">NOTES &amp; VERIFIED RECORDS:</strong>
+                {invoice.notes}
+              </p>
+            )}
+          </div>
+
+          {/* ── Micro Footer ── */}
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between text-[10px] text-muted-foreground/70 font-medium border-t border-border/40 gap-2">
+            <span>Official Commercial Document • NexAce Financial Desk</span>
+            <span>Electronic Document • Legally valid without physical seal</span>
+          </div>
+        </div>
+      </div>
+
+      <InvoiceHistoryDrawer
+        isOpen={showHistoryDrawer}
+        onClose={() => setShowHistoryDrawer(false)}
+        invoiceId={invoice._id || invoice.invoiceNo}
+        invoiceNo={invoice.invoiceNo}
+        clientName={invoice.billedToName || invoice.businessName || invoice.customerNo || "Client"}
+        amount={invoice.total}
+        currency={invoice.currency}
+        status={invoice.status}
+        isInternal={invoice.invoiceNo?.startsWith("INV-SAL") || invoice.invoiceNo?.startsWith("INV-EMP")}
+      />
+    </div>
+  );
+}

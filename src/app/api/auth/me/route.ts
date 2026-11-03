@@ -1,0 +1,101 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { connectToDatabase } from "@/lib/db";
+import { User } from "@/models/User";
+import { parseClientTelemetry } from "@/lib/deviceDetector";
+import "@/models/Tenant";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session || !session.userId) {
+      return NextResponse.json({ user: null }, { status: 401 });
+    }
+
+    await connectToDatabase();
+    
+    // Automatically capture device telemetry on every active session request
+    const telemetry = parseClientTelemetry(request);
+
+    let user = null;
+    let dbError = false;
+    try {
+      // Find current user to check if initial loginHistory needs to be seeded
+      const existingUser = await User.findById(session.userId);
+
+      const updateDoc: any = {
+        $set: {
+          lastActiveAt: new Date(),
+          lastLoginIp: telemetry.ip,
+          "lastLoginDevice.type": telemetry.type,
+          "lastLoginDevice.os": telemetry.os,
+          "lastLoginDevice.browser": telemetry.browser,
+          "lastLoginDevice.userAgent": telemetry.userAgent,
+          "lastLoginDevice.lastActiveAt": new Date(),
+        },
+      };
+
+      if (!existingUser?.loginHistory || existingUser.loginHistory.length === 0) {
+        updateDoc.$push = {
+          loginHistory: {
+            ip: telemetry.ip,
+            deviceType: telemetry.type,
+            os: telemetry.os,
+            browser: telemetry.browser,
+            loggedInAt: new Date(),
+          },
+        };
+      }
+
+      user = await User.findByIdAndUpdate(
+        session.userId,
+        updateDoc,
+        { returnDocument: "after" }
+      )
+        .select("-passwordHash")
+        .populate("tenantId")
+        .lean();
+    } catch (err) {
+      console.error("Error finding user in /api/auth/me:", err);
+      user = null;
+      dbError = true;
+    }
+
+    if (!user) {
+      // Only delete session if user was actually not found (deleted / invalid) in DB.
+      // Do NOT delete session if there was a transient DB connection failure.
+      if (!dbError) {
+        const { deleteSession } = await import("@/lib/session");
+        await deleteSession();
+        const res = NextResponse.json({ user: null, error: "Account not found" }, { status: 401 });
+        res.cookies.delete("session");
+        return res;
+      }
+      return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 });
+    }
+
+    if (user.status === "Suspended") {
+      const { deleteSession } = await import("@/lib/session");
+      await deleteSession();
+      const res = NextResponse.json({ user: null, error: "Account suspended" }, { status: 401 });
+      res.cookies.delete("session");
+      return res;
+    }
+
+    return NextResponse.json(
+      { user },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0, must-revalidate",
+        },
+      }
+    );
+  } catch (error) {
+    console.error("API Auth Me error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+

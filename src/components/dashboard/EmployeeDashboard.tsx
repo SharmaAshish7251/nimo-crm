@@ -1,0 +1,1901 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/hooks/usePermissions";
+import { cn, formatISTDate, formatISTTime, getISTDateString } from "@/lib/utils";
+import { NativeService } from "@/lib/native/nativeService";
+import { CombinedPdfExportModal } from "@/components/dashboard/CombinedPdfExportModal";
+import { UpcomingHolidaysWidget } from "@/components/dashboard/UpcomingHolidaysWidget";
+import { UpcomingCelebrationsWidget } from "@/components/dashboard/UpcomingCelebrationsWidget";
+import { BirthdayCelebrationBanner } from "@/components/dashboard/BirthdayCelebrationBanner";
+import { BirthdayWishesModal, BirthdayWishItem } from "@/components/dashboard/BirthdayWishesModal";
+
+export function EmployeeDashboard({ user }: { user: any }) {
+  const { can } = usePermissions();
+  const [clockedIn, setClockedIn] = useState(false);
+  const [todayAttendanceRecord, setTodayAttendanceRecord] = useState<any | null>(null);
+  const [clockTime, setClockTime] = useState<string | null>(null);
+  const [clockInIso, setClockInIso] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState("00:00:00");
+  const [extensionCountdown, setExtensionCountdown] = useState<{
+    remainingSecs: number;
+    formatted: string;
+    isUnder10Min: boolean;
+    isExpired: boolean;
+  } | null>(null);
+  const [clocking, setClocking] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [timesheets, setTimesheets] = useState<any[]>([]);
+  const [sprints, setSprints] = useState<any[]>([]);
+  const [teamLeaves, setTeamLeaves] = useState<any[]>([]);
+
+  // Celebration state
+  const [celebrationData, setCelebrationData] = useState<{
+    isMyBirthday: boolean;
+    isMyAnniversary: boolean;
+    wishesCount: number;
+    receivedWishes: BirthdayWishItem[];
+    sentWishes?: BirthdayWishItem[];
+    milestoneText?: string;
+  } | null>(null);
+  const [isWishesModalOpen, setIsWishesModalOpen] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [onboardingChecklist, setOnboardingChecklist] = useState<any | null>(null);
+  const [employeeDocs, setEmployeeDocs] = useState<any[]>([]);
+  const [uploadModalDoc, setUploadModalDoc] = useState<any | null>(null);
+  const [uploadDocFile, setUploadDocFile] = useState<File | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Export & Toast State
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [exportingReport, setExportingReport] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Shift Extension Request State
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionRequestedHours, setExtensionRequestedHours] = useState(1.0);
+  const [extensionReason, setExtensionReason] = useState("");
+  const [submittingExtension, setSubmittingExtension] = useState(false);
+
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchAttendanceStatus = async () => {
+    try {
+      const res = await fetch("/api/attendance");
+      if (res.ok) {
+        const data = await res.json();
+        setTodayAttendanceRecord(data.attendance || null);
+        if (data.attendance && data.attendance.clockIn && !data.attendance.clockOut) {
+          setClockedIn(true);
+          setClockInIso(data.attendance.clockIn);
+          const displayClockIn = data.attendance.originalClockIn || data.attendance.clockIn;
+          const clockInDate = new Date(displayClockIn);
+          setClockTime(clockInDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }));
+        } else {
+          setClockedIn(false);
+          setClockInIso(null);
+          setClockTime(null);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch attendance status:", err);
+    }
+  };
+
+  const handleSubmitExtensionRequest = async () => {
+    if (!extensionReason.trim()) {
+      showToast("Please provide a reason for the extension request", "error");
+      return;
+    }
+    setSubmittingExtension(true);
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "request_extension",
+          requestedHours: extensionRequestedHours,
+          reason: extensionReason.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit request");
+
+      showToast(`Shift extension (+${extensionRequestedHours.toFixed(1)}h) submitted for Admin, OPS, and HR approval!`, "success");
+      setShowExtensionModal(false);
+      setExtensionReason("");
+      await fetchAttendanceStatus();
+    } catch (err: any) {
+      showToast(err.message || "Failed to submit extension request", "error");
+    } finally {
+      setSubmittingExtension(false);
+    }
+  };
+
+  // Live stopwatch interval for active shift duration (break-aware & synchronized with calendar)
+  useEffect(() => {
+    if (!clockedIn || !todayAttendanceRecord) {
+      if (todayAttendanceRecord?.clockIn && todayAttendanceRecord?.clockOut) {
+        const totalWorkedHrs = (todayAttendanceRecord.regularHours || 0) + (todayAttendanceRecord.overtimeHours || 0);
+        const totalSecs = Math.round(totalWorkedHrs * 3600);
+        const hrs = Math.floor(totalSecs / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = totalSecs % 60;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        setElapsedTime(`${pad(hrs)}:${pad(mins)}:${pad(secs)}`);
+      } else {
+        setElapsedTime("00:00:00");
+      }
+      setExtensionCountdown(null);
+      return;
+    }
+
+    const clockInTime = new Date(todayAttendanceRecord.originalClockIn || todayAttendanceRecord.clockIn).getTime();
+
+    const updateTimer = () => {
+      const maxElapsedSecs = Math.max(0, Math.floor((Date.now() - clockInTime) / 1000));
+      let totalSecs: number;
+
+      if (todayAttendanceRecord.lastResumedAt) {
+        const priorSecs = Math.round(((todayAttendanceRecord.regularHours || 0) + (todayAttendanceRecord.overtimeHours || 0)) * 3600);
+        const segmentStart = new Date(todayAttendanceRecord.lastResumedAt).getTime();
+        const currentSegmentSecs = Math.max(0, Math.floor((Date.now() - segmentStart) / 1000));
+        totalSecs = Math.min(priorSecs + currentSegmentSecs, maxElapsedSecs);
+      } else {
+        totalSecs = maxElapsedSecs;
+      }
+
+      const hrs = Math.floor(totalSecs / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      setElapsedTime(`${pad(hrs)}:${pad(mins)}:${pad(secs)}`);
+
+      // Live extension countdown calculation
+      if (todayAttendanceRecord.extensionApproved && !todayAttendanceRecord.clockOut) {
+        const allocatedHrs = Number(todayAttendanceRecord.extensionAllocatedHours) || 0;
+        const baseShiftHours = todayAttendanceRecord.targetHours || 8;
+        const totalAuthorizedSecs = Math.round((baseShiftHours + allocatedHrs) * 3600);
+        const remainingSecs = Math.max(0, totalAuthorizedSecs - totalSecs);
+        const remHrs = Math.floor(remainingSecs / 3600);
+        const remMins = Math.floor((remainingSecs % 3600) / 60);
+        const remS = remainingSecs % 60;
+        const isExpired = remainingSecs === 0;
+        const formatted = isExpired
+          ? "Expired"
+          : remHrs > 0
+            ? `${remHrs}h ${pad(remMins)}m ${pad(remS)}s`
+            : `${pad(remMins)}m ${pad(remS)}s`;
+
+        setExtensionCountdown({
+          remainingSecs,
+          formatted,
+          isUnder10Min: !isExpired && remainingSecs <= 600,
+          isExpired,
+        });
+      } else {
+        setExtensionCountdown(null);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [clockedIn, todayAttendanceRecord]);
+
+  useEffect(() => {
+    async function fetchEmployeeData() {
+      try {
+        // ✅ Performance: run all fetches in parallel — no waterfall
+        const [attRes, taskRes, tsRes, sprintRes, leaveRes, annRes, chkRes, docRes] = await Promise.all([
+          fetch("/api/attendance"),
+          fetch("/api/tasks"),
+          fetch("/api/timesheets"),
+          fetch("/api/sprints"),
+          fetch("/api/hr/leaves"),
+          fetch("/api/chat/announcements"),
+          fetch("/api/hr/checklists?type=Onboarding"),
+          fetch("/api/hr/documents"),
+        ]);
+
+        // Process attendance
+        if (attRes.ok) {
+          const data = await attRes.json();
+          setTodayAttendanceRecord(data.attendance || null);
+          if (data.attendance && data.attendance.clockIn && !data.attendance.clockOut) {
+            setClockedIn(true);
+            setClockInIso(data.attendance.clockIn);
+            const displayClockIn = data.attendance.originalClockIn || data.attendance.clockIn;
+            const clockInDate = new Date(displayClockIn);
+            setClockTime(clockInDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }));
+          } else {
+            setClockedIn(false);
+            setClockInIso(null);
+            setClockTime(null);
+          }
+        }
+
+        if (taskRes.ok) {
+          const tData = await taskRes.json();
+          setTasks(tData.tasks || []);
+        }
+        if (tsRes.ok) {
+          const tsData = await tsRes.json();
+          setTimesheets(tsData.entries || []);
+        }
+        if (sprintRes.ok) {
+          const sData = await sprintRes.json();
+          setSprints(sData.sprints || []);
+        }
+        if (leaveRes.ok) {
+          const lData = await leaveRes.json();
+          setTeamLeaves(lData.leaves || []);
+        }
+        if (annRes.ok) {
+          const aData = await annRes.json();
+          setAnnouncements(aData.announcements || []);
+        }
+        if (chkRes && chkRes.ok) {
+          const chkData = await chkRes.json();
+          const activeChk = (chkData.checklists || []).find((c: any) => c.type === "Onboarding" && c.status === "In Progress");
+          setOnboardingChecklist(activeChk || null);
+        }
+        if (docRes && docRes.ok) {
+          const docData = await docRes.json();
+          setEmployeeDocs(docData.documents || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch employee tasks/timesheets/sprints/announcements:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchEmployeeData();
+
+    // Auto-sync polling every 30 seconds
+    const pollInterval = setInterval(fetchAttendanceStatus, 30_000);
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  const handleEmployeeDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadModalDoc || !uploadDocFile) return;
+    try {
+      setUploadingDoc(true);
+      const formData = new FormData();
+      formData.append("file", uploadDocFile);
+      formData.append("documentId", uploadModalDoc._id);
+      formData.append("title", uploadModalDoc.title);
+      formData.append("category", uploadModalDoc.category || "Document");
+      const res = await fetch("/api/hr/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      showToast(`"${uploadModalDoc.title}" submitted successfully!`, "success");
+      setUploadModalDoc(null);
+      setUploadDocFile(null);
+      const dRes = await fetch("/api/hr/documents");
+      if (dRes.ok) {
+        const d = await dRes.json();
+        setEmployeeDocs(d.documents || []);
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to upload document", "error");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleToggleClock = async () => {
+    const isPaused = !clockedIn && Boolean(todayAttendanceRecord?.clockIn && todayAttendanceRecord?.clockOut);
+    const action = clockedIn ? "out" : (isPaused ? "resume" : "in");
+    try {
+      NativeService.haptic("medium");
+      setClocking(true);
+
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        NativeService.haptic("success");
+        await fetchAttendanceStatus();
+        showToast(
+          action === "out"
+            ? "Successfully clocked out for today."
+            : isPaused
+            ? "Shift resumed successfully!"
+            : "Successfully clocked in!",
+          "success"
+        );
+      } else {
+        NativeService.haptic("error");
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || "Failed to update attendance.", "error");
+      }
+    } catch (err) {
+      NativeService.haptic("error");
+      console.error("Failed to toggle clock state:", err);
+      showToast("Network or server error while clocking.", "error");
+    } finally {
+      setClocking(false);
+    }
+  };
+
+  // --- Export 1: Project Tasks (with details) ---
+  const handleExportTasksReport = async () => {
+    try {
+      setExportingReport("tasks");
+      let currentTasks = tasks;
+      if (currentTasks.length === 0) {
+        const res = await fetch("/api/tasks");
+        if (res.ok) {
+          const data = await res.json();
+          currentTasks = data.tasks || [];
+        }
+      }
+      if (currentTasks.length === 0) {
+        showToast("No assigned tasks found to export.", "error");
+        return;
+      }
+
+      const headers = [
+        "Task ID",
+        "Task Title",
+        "Project",
+        "Priority",
+        "Status",
+        "Due Date (IST)",
+        "Estimated Hours",
+        "Subtasks Progress",
+        "Description",
+        "Assigned / Created Date (IST)"
+      ];
+
+      const rows = currentTasks.map((t) => {
+        const subtasksTotal = Array.isArray(t.subtasks) ? t.subtasks.length : 0;
+        const subtasksDone = Array.isArray(t.subtasks) ? t.subtasks.filter((s: any) => s.completed).length : 0;
+        const subtaskStr = subtasksTotal > 0 ? `${subtasksDone}/${subtasksTotal} Completed` : "No subtasks";
+        const projName = t.projectId?.name || t.project || "General";
+        const dueDateStr = t.dueDate ? formatISTDate(t.dueDate) : "No due date";
+        const createdDateStr = t.createdAt ? formatISTDate(t.createdAt) : "";
+        const descClean = (t.description || "").replace(/[\r\n]+/g, " ").trim();
+
+        return [
+          `"${t._id || ""}"`,
+          `"${(t.title || "").replace(/"/g, '""')}"`,
+          `"${projName.replace(/"/g, '""')}"`,
+          `"${t.priority || "Medium"}"`,
+          `"${t.status || "To Do"}"`,
+          `"${dueDateStr}"`,
+          t.estimatedHours || 0,
+          `"${subtaskStr}"`,
+          `"${descClean.replace(/"/g, '""')}"`,
+          `"${createdDateStr}"`
+        ].join(",");
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `My_Project_Tasks_Report_${getISTDateString()}_IST.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast("Detailed project tasks exported successfully!", "success");
+    } catch (err) {
+      console.error("Failed to export tasks report:", err);
+      showToast("Failed to export tasks report.", "error");
+    } finally {
+      setExportingReport(null);
+      setShowExportMenu(false);
+    }
+  };
+
+  // --- Export 2: Timesheet Report ---
+  const handleExportTimesheetsReport = async () => {
+    try {
+      setExportingReport("timesheets");
+      let currentEntries = timesheets;
+      if (currentEntries.length === 0) {
+        const res = await fetch("/api/timesheets");
+        if (res.ok) {
+          const data = await res.json();
+          currentEntries = data.entries || [];
+        }
+      }
+      if (currentEntries.length === 0) {
+        showToast("No logged timesheet records found to export.", "error");
+        return;
+      }
+
+      const headers = [
+        "Date (IST)",
+        "Project Name",
+        "Task / Work Description",
+        "Hours Logged",
+        "Billable Status",
+        "Approval Status",
+        "Notes / Comments"
+      ];
+
+      const rows = currentEntries.map((e) => {
+        const dateStr = e.date ? formatISTDate(e.date) : "";
+        const proj = (e.project || "General").replace(/"/g, '""');
+        const task = (e.taskName || "General Development").replace(/"/g, '""');
+        const billable = e.isBillable ? "Billable" : "Non-Billable";
+        const status = e.status || "Draft";
+        const comment = (e.comment || "").replace(/[\r\n]+/g, " ").replace(/"/g, '""').trim();
+
+        return [
+          `"${dateStr}"`,
+          `"${proj}"`,
+          `"${task}"`,
+          e.hours || 0,
+          `"${billable}"`,
+          `"${status}"`,
+          `"${comment}"`
+        ].join(",");
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `My_Timesheet_Report_${getISTDateString()}_IST.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast("Timesheet report exported successfully!", "success");
+    } catch (err) {
+      console.error("Failed to export timesheets report:", err);
+      showToast("Failed to export timesheets report.", "error");
+    } finally {
+      setExportingReport(null);
+      setShowExportMenu(false);
+    }
+  };
+
+  // --- Export 3: Shift Log (Attendance) ---
+  const handleExportShiftLogsReport = async () => {
+    try {
+      setExportingReport("shifts");
+      const res = await fetch("/api/attendance?limit=all");
+      if (!res.ok) throw new Error("Failed to fetch shift records");
+      const data = await res.json();
+      const logs = data.history || (data.attendance ? [data.attendance] : []);
+
+      if (logs.length === 0) {
+        showToast("No shift attendance logs found to export.", "error");
+        return;
+      }
+
+      const headers = [
+        "Date (IST)",
+        "Employee Name",
+        "Shift Name",
+        "Shift Timing",
+        "Clock In (IST)",
+        "Clock Out (IST)",
+        "Duration (Hours)",
+        "Regular Hours",
+        "Overtime Hours",
+        "Attendance Status"
+      ];
+
+      const getLogHours = (log: any) => {
+        let reg = log.regularHours || 0;
+        let ot = log.overtimeHours || 0;
+        if ((reg === 0 && ot === 0 && log.clockIn) || !log.clockOut || log.clockOut === "Active") {
+          if (log.clockIn) {
+            const startMs = new Date(log.clockIn).getTime();
+            const endMs = log.clockOut && log.clockOut !== "Active" ? new Date(log.clockOut).getTime() : Date.now();
+            const diffHours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60));
+            reg = Math.min(diffHours, 8.0);
+            ot = Math.max(0, diffHours - 8.0);
+          }
+        }
+        return { reg, ot, total: reg + ot };
+      };
+
+      const rows = logs.map((log: any) => {
+        const empName = user?.name || "Employee";
+        const shiftName = user?.shiftName || "Standard Day Shift";
+        const shiftTime = user?.shiftTime || "09:00 AM - 05:00 PM";
+        const dateStr = log.date ? formatISTDate(log.date) : "";
+        const clockInStr = (log.originalClockIn || log.clockIn) ? formatISTTime(log.originalClockIn ?? log.clockIn) : "--";
+        const clockOutStr = log.clockOut && log.clockOut !== "Active" ? formatISTTime(log.clockOut) : (log.clockIn ? "Active Shift" : "--");
+
+        const { reg, ot, total } = getLogHours(log);
+        const status = log.status || (log.clockIn && !log.clockOut ? "Active" : "Present");
+
+        return [
+          `"${dateStr}"`,
+          `"${empName}"`,
+          `"${shiftName}"`,
+          `"${shiftTime}"`,
+          `"${clockInStr}"`,
+          `"${clockOutStr}"`,
+          total.toFixed(2),
+          reg.toFixed(2),
+          ot.toFixed(2),
+          `"${status}"`
+        ].join(",");
+      });
+
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `My_Shift_Attendance_Log_${getISTDateString()}_IST.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast("Shift logs exported successfully!", "success");
+    } catch (err) {
+      console.error("Failed to export shift logs:", err);
+      showToast("Failed to export shift logs.", "error");
+    } finally {
+      setExportingReport(null);
+      setShowExportMenu(false);
+    }
+  };
+
+
+
+  // ✅ Performance: memoized — only recalculates when timesheets changes
+  const totalLoggedHours = useMemo(
+    () => timesheets.reduce((acc, t) => acc + (t.hours || 0), 0),
+    [timesheets]
+  );
+
+  return (
+    <div className="space-y-8 animate-in fade-in">
+      {/* ── Birthday & Work Anniversary Hero Celebration Banner ── */}
+      {celebrationData && (celebrationData.isMyBirthday || celebrationData.isMyAnniversary) && (
+        <BirthdayCelebrationBanner
+          isMyBirthday={celebrationData.isMyBirthday}
+          isMyAnniversary={celebrationData.isMyAnniversary}
+          userName={user?.name || "Team Member"}
+          milestoneText={celebrationData.milestoneText}
+          wishesCount={celebrationData.wishesCount}
+          onOpenWishes={() => setIsWishesModalOpen(true)}
+          onThankEveryone={async () => {
+            await fetch("/api/birthdays/thank-all", { method: "POST" });
+          }}
+        />
+      )}
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={cn(
+            "fixed top-4 right-4 z-[99999] px-4 py-3 rounded-lg shadow-lg border text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2",
+            toast.type === "success"
+              ? "bg-emerald-500/90 text-white border-emerald-600"
+              : "bg-destructive/90 text-white border-destructive"
+          )}
+        >
+          {toast.type === "success" ? <i className="fa-solid fa-circle-check text-base" /> : <i className="fa-solid fa-circle-exclamation text-base" />}
+          {toast.message}
+        </div>
+      )}
+
+      {/* Hero Welcome Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-500/10 via-primary/5 to-transparent p-6 rounded-2xl border border-emerald-500/20">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-500 tracking-wider uppercase mb-1">
+            <i className="fa-solid fa-id-badge text-emerald-500 text-sm" /> Employee Workspace
+          </div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            Welcome back, {user?.name?.split(" ")[0] || "Team Member"}! 👋
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Here is your daily pulse, assigned sprint deliverables, and shift attendance record.
+          </p>
+        </div>
+
+        {/* Header Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Export Reports Dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="gap-2 font-semibold shadow-xs cursor-pointer border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            >
+              {exportingReport ? (
+                <>
+                  <i className="fa-solid fa-spinner fa-spin text-xs" /> Exporting...
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-file-arrow-down text-xs" /> Export Reports
+                  <i className={cn("fa-solid text-[10px] transition-transform", showExportMenu ? "fa-chevron-up" : "fa-chevron-down")} />
+                </>
+              )}
+            </Button>
+
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-card border border-border shadow-xl z-50 p-1.5 space-y-1 animate-in fade-in slide-in-from-top-2">
+                <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 flex items-center justify-between">
+                  <span>Select Report Type</span>
+                  <span className="text-[10px] text-emerald-500 font-semibold">PDF &amp; CSV</span>
+                </div>
+
+                {/* Combined PDF Button */}
+                <button
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    setShowPdfExportModal(true);
+                  }}
+                  disabled={Boolean(exportingReport)}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors flex items-center gap-2.5 cursor-pointer disabled:opacity-50 shadow-xs mb-1"
+                >
+                  <div className="w-7 h-7 rounded-md bg-white/20 text-white flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-file-pdf text-xs" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-white">Download Combined PDF</p>
+                    <p className="text-[10px] text-rose-100">Configure time period &amp; filters</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleExportTasksReport}
+                  disabled={Boolean(exportingReport)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-accent/60 transition-colors flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                >
+                  <div className="w-7 h-7 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-list-check text-xs" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground">Project Tasks (CSV)</p>
+                    <p className="text-[10px] text-muted-foreground">Priority, due dates &amp; subtasks</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleExportTimesheetsReport}
+                  disabled={Boolean(exportingReport)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-accent/60 transition-colors flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                >
+                  <div className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-calendar-days text-xs" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground">My Timesheet (CSV)</p>
+                    <p className="text-[10px] text-muted-foreground">Logged hours &amp; billable status</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleExportShiftLogsReport}
+                  disabled={Boolean(exportingReport)}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-accent/60 transition-colors flex items-center gap-2.5 cursor-pointer disabled:opacity-50"
+                >
+                  <div className="w-7 h-7 rounded-md bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-clock-rotate-left text-xs" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground">Shift Attendance Logs (CSV)</p>
+                    <p className="text-[10px] text-muted-foreground">Clock in/out timings &amp; duration</p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <Button asChild color="primary" size="sm">
+            <Link href="/dashboard/calendar">
+              <i className="fa-solid fa-calendar-days text-xs mr-2" /> My Shift Calendar
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/projects">My Tasks</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/clients?tab=reports" className="gap-1 text-emerald-600 dark:text-emerald-400">
+              <i className="fa-solid fa-file-lines text-xs mr-1" /> OPS Reports
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* New Hire Onboarding & Document Submission Banner */}
+      {onboardingChecklist && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border-2 border-emerald-500/30 shadow-lg relative overflow-hidden animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0 text-xl shadow-xs">
+                <i className="fa-solid fa-user-check" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-base text-foreground">
+                    Welcome to the Team, {user?.name}! 🎉
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    Action Required: Onboarding
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your workspace account has been activated! Your dedicated HR Partner has requested your verification documents (Government ID proof, Address verification, Banking details).
+                </p>
+                <div className="flex items-center gap-3 pt-1 text-xs">
+                  <span className="font-medium text-foreground flex items-center gap-1.5">
+                    <i className="fa-solid fa-list-check text-emerald-500 text-xs" />
+                    Progress:{" "}
+                    <strong>
+                      {(onboardingChecklist.items || []).filter((i: any) => i.completed).length} of{" "}
+                      {(onboardingChecklist.items || []).length} completed
+                    </strong>
+                  </span>
+                  <div className="w-32 bg-background/80 h-2 rounded-full overflow-hidden border border-emerald-500/20">
+                    <div
+                      className="bg-emerald-500 h-full rounded-full transition-all"
+                      style={{
+                        width: `${
+                          (onboardingChecklist.items || []).length > 0
+                            ? ((onboardingChecklist.items || []).filter((i: any) => i.completed).length /
+                                (onboardingChecklist.items || []).length) *
+                              100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button asChild className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md gap-2 cursor-pointer">
+                <Link href="/dashboard/hr?tab=checklists&highlight=true">
+                  <i className="fa-solid fa-file-arrow-up text-xs" /> Upload Onboarding Documents &rarr;
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Documents Section - Only shown if action is required (e.g. any document is Rejected or pending request) */}
+      {(() => {
+        const myDocs = employeeDocs.filter(
+          (d) =>
+            (d.targetUserId?._id || d.targetUserId) === user?._id ||
+            d.targetUserId === user?.id
+        );
+
+        const rejectedDocs = myDocs.filter((d: any) => d.status === "Rejected");
+        const pendingRequestedDocs = myDocs.filter((d: any) => d.status === "Requested" || !d.fileUrl);
+
+        // If any documents are rejected, ONLY show the rejected documents (not all).
+        // If user is not yet verified, show only pending requested documents.
+        // If all documents are verified or submitted, hide this section from top.
+        const docsToShow = rejectedDocs.length > 0
+          ? rejectedDocs
+          : (!user?.documentsSubmitted ? pendingRequestedDocs : []);
+
+        if (docsToShow.length === 0) return null;
+
+        const hasRejected = rejectedDocs.length > 0;
+
+        return (
+          <Card
+            className={cn(
+              "border shadow-xs overflow-hidden animate-in fade-in slide-in-from-top-1",
+              hasRejected ? "border-rose-500/30 bg-rose-500/[0.02]" : "border-amber-500/30 bg-amber-500/[0.02]"
+            )}
+          >
+            <CardHeader
+              className={cn(
+                "pb-3 border-b",
+                hasRejected ? "border-rose-500/20 bg-rose-500/10" : "border-amber-500/20 bg-amber-500/10"
+              )}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    {hasRejected ? (
+                      <>
+                        <i className="fa-solid fa-circle-exclamation text-rose-500" /> Action Required: Document Re-upload
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-clock text-amber-500" /> Pending Document Submissions
+                      </>
+                    )}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {hasRejected
+                      ? `HR has rejected ${rejectedDocs.length} document${rejectedDocs.length > 1 ? "s" : ""}. Please review the rejection notes and re-upload.`
+                      : "Please submit the requested verification documents for HR compliance and approval."}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    className={cn(
+                      "text-xs px-2.5 py-0.5 font-bold",
+                      hasRejected
+                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                    )}
+                  >
+                    {hasRejected ? (
+                      <>
+                        <i className="fa-solid fa-triangle-exclamation mr-1 text-rose-500" /> {rejectedDocs.length} Rejected
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-clock mr-1 text-amber-500" /> {pendingRequestedDocs.length} Pending
+                      </>
+                    )}
+                  </Badge>
+                  <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+                    <Link href="/dashboard/hr?tab=vault">
+                      <i className="fa-solid fa-vault mr-1 text-[10px]" /> Vault
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {docsToShow.map((doc: any) => {
+                  const statusColors: Record<string, string> = {
+                    Requested: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+                    Submitted: "bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30",
+                    Verified: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+                    Rejected: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30",
+                  };
+
+                  return (
+                    <div
+                      key={doc._id}
+                      className={cn(
+                        "p-3.5 rounded-xl border flex flex-col justify-between gap-3 transition-colors",
+                        doc.status === "Rejected"
+                          ? "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50"
+                          : "border-border bg-card/60 hover:border-primary/40"
+                      )}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-foreground truncate">{doc.title}</span>
+                          <Badge className={cn("text-[10px] px-2 py-0 font-bold shrink-0", statusColors[doc.status || "Submitted"])}>
+                            {doc.status || "Submitted"}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Category: <span className="font-medium text-foreground">{doc.category || "Document"}</span>
+                        </p>
+                        {doc.notes && (
+                          <div
+                            className={cn(
+                              "p-2 rounded-lg text-xs flex items-start gap-1.5 mt-1",
+                              doc.status === "Rejected"
+                                ? "bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            <i
+                              className={cn(
+                                "text-[11px] mt-0.5 shrink-0",
+                                doc.status === "Rejected"
+                                  ? "fa-solid fa-circle-exclamation text-rose-500"
+                                  : "fa-solid fa-note-sticky text-muted-foreground"
+                              )}
+                            />
+                            <span>
+                              <strong>{doc.status === "Rejected" ? "Rejection Reason:" : "Note:"}</strong> {doc.notes}
+                            </span>
+                          </div>
+                        )}
+                        {doc.status === "Requested" && doc.requestedBy?.userName && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            Requested by HR {doc.requestedBy.userName}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
+                        {doc.fileUrl ? (
+                          <a
+                            href={doc.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline font-semibold inline-flex items-center gap-1 text-[11px]"
+                          >
+                            <i className="fa-solid fa-file text-[10px]" /> View Previous File
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                            Action required
+                          </span>
+                        )}
+
+                        {doc.status === "Requested" || !doc.fileUrl ? (
+                          <Button
+                            size="sm"
+                            className="h-7 px-3 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 cursor-pointer shadow-xs"
+                            onClick={() => {
+                              setUploadModalDoc(doc);
+                              setUploadDocFile(null);
+                            }}
+                          >
+                            <i className="fa-solid fa-upload text-[10px]" /> Upload File
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant={doc.status === "Rejected" ? "default" : "outline"}
+                            className={cn(
+                              "h-7 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer",
+                              doc.status === "Rejected" && "bg-rose-600 hover:bg-rose-700 text-white"
+                            )}
+                            onClick={() => {
+                              setUploadModalDoc(doc);
+                              setUploadDocFile(null);
+                            }}
+                          >
+                            <i className="fa-solid fa-arrow-rotate-right text-[10px]" /> Re-upload
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Employee Personal KPI Metric Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <Link href="/dashboard/calendar" className="block group">
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-emerald-500 h-full group-hover:border-emerald-400 group-hover:bg-accent/20 cursor-pointer">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">My Shift Schedule</p>
+                <p className="text-lg font-bold text-foreground">{user?.shiftName || "Standard Day Shift"}</p>
+                <p className="text-xs text-emerald-500 font-mono font-semibold flex items-center gap-1 mt-1">
+                  <i className="fa-solid fa-sun text-amber-500 text-xs" /> {user?.shiftTime || "09:00 AM - 05:00 PM"}
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl flex items-center justify-center w-12 h-12 group-hover:scale-110 transition-transform">
+                <i className="fa-solid fa-clock text-xl" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/calendar?tab=timesheets" className="block group">
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-primary h-full group-hover:border-primary/80 group-hover:bg-accent/20 cursor-pointer">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">My Timesheet Hours</p>
+                <p className="text-2xl font-bold text-foreground">{loading ? "..." : `${totalLoggedHours} Hrs`}</p>
+                <p className="text-xs text-primary font-medium flex items-center gap-1 mt-1">
+                  Target: 40.0 Hrs this week
+                </p>
+              </div>
+              <div className="p-3 bg-primary/10 text-primary rounded-xl flex items-center justify-center w-12 h-12 group-hover:scale-110 transition-transform">
+                <i className="fa-solid fa-calendar-days text-xl" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/projects" className="block group">
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-amber-500 h-full group-hover:border-amber-400 group-hover:bg-accent/20 cursor-pointer">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">Assigned Tasks</p>
+                <p className="text-2xl font-bold text-foreground">{loading ? "..." : `${tasks.length} Active`}</p>
+                <p className="text-xs text-amber-500 font-medium flex items-center gap-1 mt-1">
+                  Tasks assigned to you
+                </p>
+              </div>
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl flex items-center justify-center w-12 h-12 group-hover:scale-110 transition-transform">
+                <i className="fa-solid fa-list-check text-xl" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/hr" className="block group">
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-sky-500 h-full group-hover:border-sky-400 group-hover:bg-accent/20 cursor-pointer">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">Approved Leaves</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {loading ? "..." : `${teamLeaves.filter((l) => l.status === "Approved").length} Approved`}
+                </p>
+                <p className="text-xs text-sky-500 font-medium flex items-center gap-1 mt-1">
+                  From your leave requests
+                </p>
+              </div>
+              <div className="p-3 bg-sky-500/10 text-sky-500 rounded-xl flex items-center justify-center w-12 h-12 group-hover:scale-110 transition-transform">
+                <i className="fa-solid fa-calendar-check text-xl" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Employee Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column (2 span): Shift Schedule & Assigned Deliverables */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border border-border">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-clock-rotate-left text-primary text-base sm:text-lg shrink-0" />
+                  <span className="truncate">Today&apos;s Shift &amp; Attendance</span>
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm mt-0.5">
+                  Your assigned shift schedule &amp; real-time punch status
+                </CardDescription>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportShiftLogsReport}
+                  disabled={exportingReport === "shifts"}
+                  className="h-9 px-2.5 sm:px-3 text-xs gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer shadow-xs shrink-0"
+                  title="Download My Shift Attendance Logs CSV"
+                >
+                  <i className={cn("fa-solid text-xs", exportingReport === "shifts" ? "fa-spinner fa-spin" : "fa-file-csv")} />
+                  <span className="hidden sm:inline">Export Shift Logs</span>
+                </Button>
+
+                {/* Request Shift Extension Button */}
+                {Boolean(clockedIn || (todayAttendanceRecord?.clockIn && todayAttendanceRecord?.clockOut)) &&
+                  !todayAttendanceRecord?.extensionRequested && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowExtensionModal(true)}
+                      className="gap-1.5 font-semibold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer h-9 px-3 shrink-0 text-xs shadow-xs"
+                      title="Request additional shift hours"
+                    >
+                      <i className="fa-solid fa-clock-rotate-left text-xs" />
+                      <span className="hidden sm:inline">Request Extension</span>
+                    </Button>
+                  )}
+
+                {(() => {
+                  const isShiftPaused = !clockedIn && Boolean(todayAttendanceRecord?.clockIn && todayAttendanceRecord?.clockOut);
+                  return (
+                    <Button
+                      id="attendance-widget"
+                      data-attendance-widget="true"
+                      color={clockedIn ? "destructive" : isShiftPaused ? "warning" : "primary"}
+                      size="sm"
+                      onClick={handleToggleClock}
+                      disabled={clocking}
+                      className="gap-2 font-semibold shadow-md cursor-pointer h-9 px-3.5 shrink-0 text-xs sm:text-sm"
+                    >
+                      {clocking ? (
+                        <>
+                          <i className="fa-solid fa-spinner fa-spin text-xs" /> Syncing...
+                        </>
+                      ) : clockedIn ? (
+                        <>
+                          <i className="fa-solid fa-square text-xs" /> Clock Out
+                        </>
+                      ) : isShiftPaused ? (
+                        <>
+                          <i className="fa-solid fa-play text-xs" /> Resume Shift
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-play text-xs" /> Clock In Now
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()}
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {(() => {
+                const isShiftPaused = !clockedIn && Boolean(todayAttendanceRecord?.clockIn && todayAttendanceRecord?.clockOut);
+                const loggedWorkedHours = ((todayAttendanceRecord?.regularHours || 0) + (todayAttendanceRecord?.overtimeHours || 0)).toFixed(1);
+
+                return (
+                  <>
+                    <div className="p-3.5 sm:p-4 bg-muted/40 rounded-xl border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                      <div className="space-y-1.5 w-full sm:w-auto">
+                        <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
+                          <span className="font-bold text-foreground text-sm sm:text-base leading-snug">
+                            {user?.shiftName || "Standard Day Shift"}
+                          </span>
+                          <Badge
+                            color={clockedIn ? "success" : isShiftPaused ? "warning" : "secondary"}
+                            className="shrink-0 text-xs px-2.5 py-0.5 font-semibold"
+                          >
+                            {clockedIn
+                              ? "🟢 Shift Active"
+                              : isShiftPaused
+                              ? `🟡 Shift Paused (${loggedWorkedHours}h logged)`
+                              : "⚪ Off Shift"}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground pt-0.5">
+                          <span>
+                            Timing: <strong className="font-mono text-foreground whitespace-nowrap">{user?.shiftTime || "09:00 AM - 05:00 PM"}</strong>
+                          </span>
+                          <span className="text-muted-foreground/40 hidden xs:inline">•</span>
+                          <span className="whitespace-nowrap">
+                            Target: <strong className="font-mono text-foreground">8.0 Hours</strong>
+                          </span>
+                        </div>
+                      </div>
+
+                      {clockedIn && (
+                        <div className="text-left sm:text-right flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-0 border-border/70">
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Active Duration</p>
+                            <p className="font-mono font-extrabold text-base sm:text-lg text-emerald-500 tracking-tight flex items-center gap-1.5">
+                              <i className="fa-solid fa-stopwatch text-sm animate-pulse" /> {elapsedTime}
+                            </p>
+                          </div>
+                          {clockTime && (
+                            <div className="text-right">
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider sm:hidden">Clocked In</p>
+                              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                                Started at <strong className="font-mono text-foreground">{clockTime}</strong>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Shift Extension Audit Record Banner */}
+                    {todayAttendanceRecord?.extensionApproved && (() => {
+                      const approver = typeof todayAttendanceRecord.extensionApprovedBy === "object" ? todayAttendanceRecord.extensionApprovedBy : null;
+                      const approverName = approver?.name || "Operations / Admin";
+                      const approverRole = approver?.role || "Admin";
+                      const allocated = Number(todayAttendanceRecord.extensionAllocatedHours) || 0;
+                      const approvedAtStr = todayAttendanceRecord.extensionApprovedAt
+                        ? formatISTDate(todayAttendanceRecord.extensionApprovedAt) + " " + formatISTTime(todayAttendanceRecord.extensionApprovedAt)
+                        : "Approved";
+
+                      return (
+                        <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-card border border-emerald-500/30 space-y-2.5 shadow-xs">
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-emerald-500/20">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs border border-emerald-500/30 shrink-0">
+                                <i className="fa-solid fa-clock-rotate-left" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate block">Additional Shift Time Approved</span>
+                                <p className="text-[10px] text-muted-foreground truncate">Authorized extra working hours for today&apos;s shift</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                              {extensionCountdown && (
+                                <span
+                                  className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border shrink-0 flex items-center gap-1.5 transition-all shadow-xs",
+                                    extensionCountdown.isExpired
+                                      ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                                      : extensionCountdown.isUnder10Min
+                                        ? "bg-amber-500/25 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse font-extrabold"
+                                        : "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                                  )}
+                                  title={extensionCountdown.isExpired ? "Extension limit reached" : "Live remaining extension time"}
+                                >
+                                  <i className={cn(
+                                    "fa-solid text-[9px]",
+                                    extensionCountdown.isExpired
+                                      ? "fa-triangle-exclamation"
+                                      : extensionCountdown.isUnder10Min
+                                        ? "fa-hourglass-half"
+                                        : "fa-stopwatch"
+                                  )} />
+                                  <span>{extensionCountdown.formatted}</span>
+                                </span>
+                              )}
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0 flex items-center gap-1">
+                                <i className="fa-solid fa-check text-[9px]" /> +{allocated.toFixed(1)}h Active
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            <div className="p-2 sm:p-2.5 rounded-lg bg-background/80 border border-border/60">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Approved By</span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 font-bold flex items-center justify-center text-[10px] shrink-0">
+                                  {approver?.photoUrl ? (
+                                    <img src={approver.photoUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                  ) : (
+                                    approverName.charAt(0)
+                                  )}
+                                </div>
+                                <span className="font-semibold text-foreground truncate text-[11px] sm:text-xs">{approverName}</span>
+                                <span className="text-[9px] px-1 py-0.2 bg-muted text-muted-foreground rounded uppercase font-medium shrink-0">
+                                  {approverRole}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-2 sm:p-2.5 rounded-lg bg-background/80 border border-border/60">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Extra Time Granted</span>
+                              <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm block">
+                                +{allocated.toFixed(1)} Hours
+                              </span>
+                            </div>
+
+                            <div className="p-2 sm:p-2.5 rounded-lg bg-background/80 border border-border/60">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">Approved At</span>
+                              <span className="font-mono text-foreground text-[11px] sm:text-xs block">
+                                {approvedAtStr}
+                              </span>
+                            </div>
+                          </div>
+
+                          {todayAttendanceRecord.extensionReason && (
+                            <div className="p-2 rounded-lg bg-background/60 border border-border/50 text-[11px] text-muted-foreground">
+                              <strong className="text-foreground">Reason:</strong> &ldquo;{todayAttendanceRecord.extensionReason}&rdquo;
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Pending Extension Request Banner */}
+                    {todayAttendanceRecord?.extensionRequested && !todayAttendanceRecord?.extensionApproved && (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <i className="fa-solid fa-clock-rotate-left text-amber-500 shrink-0" />
+                          <span className="text-amber-700 dark:text-amber-300 font-medium truncate">
+                            Extension Request Submitted {todayAttendanceRecord?.extensionRequestedHours ? `(+${todayAttendanceRecord.extensionRequestedHours >= 1 ? `${todayAttendanceRecord.extensionRequestedHours.toFixed(1)}h` : `${Math.round(todayAttendanceRecord.extensionRequestedHours * 60)}m`}) ` : ""}&amp; Pending Approval
+                          </span>
+                        </div>
+                        <Badge color="warning" className="text-[10px] shrink-0 font-semibold px-2 py-0.5">
+                          Pending
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* Declined Extension Request Feedback Banner */}
+                    {todayAttendanceRecord?.extensionRejected && !todayAttendanceRecord?.extensionApproved && !todayAttendanceRecord?.extensionRequested && (() => {
+                      const rejector = typeof todayAttendanceRecord.extensionRejectedBy === "object" ? todayAttendanceRecord.extensionRejectedBy : null;
+                      const rejectorName = rejector?.name || "Operations / Admin";
+                      const rejectorRole = rejector?.role || "Admin";
+                      const reason = todayAttendanceRecord.extensionRejectionReason || "Operational policy limits exceeded.";
+
+                      return (
+                        <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-card border border-rose-500/30 space-y-2 text-xs shadow-xs animate-in fade-in">
+                          <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-rose-500/20">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xs border border-rose-500/30 shrink-0">
+                                <i className="fa-solid fa-circle-xmark" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate block">Extension Request Declined</span>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  Reviewed by {rejectorName} ({rejectorRole})
+                                </p>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                              Declined
+                            </span>
+                          </div>
+
+                          <div className="p-2 rounded-lg bg-background/80 border border-border/60 text-[11px] text-muted-foreground">
+                            <strong className="text-foreground">Feedback Note:</strong> &ldquo;{reason}&rdquo;
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                            <span className="text-[10px] text-muted-foreground">
+                              Need more time? You may submit an amended duration or revised request.
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExtensionRequestedHours(1);
+                                  setExtensionReason("");
+                                  setShowExtensionModal(true);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-200 border border-rose-500/40 font-bold text-[11px] inline-flex items-center gap-1.5 transition-colors cursor-pointer min-h-[36px]"
+                              >
+                                <i className="fa-solid fa-clock-rotate-left text-[11px]" />
+                                <span>Submit Revised Request</span>
+                              </button>
+                              <Link
+                                href="/dashboard/calendar"
+                                className="px-2.5 py-1.5 rounded-lg bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border border-border font-medium text-[11px] inline-flex items-center gap-1 transition-colors min-h-[36px]"
+                              >
+                                <i className="fa-solid fa-calendar-days text-[10px]" />
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                );
+              })()}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-center text-xs">
+                <div className="p-2.5 sm:p-3 rounded-lg bg-card border border-border space-y-0.5 min-w-0">
+                  <span className="text-muted-foreground text-[11px] sm:text-xs">Shift Type</span>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm truncate">{user?.employmentType || "Regular Full-Time"}</p>
+                </div>
+                <div className="p-2.5 sm:p-3 rounded-lg bg-card border border-border space-y-0.5 min-w-0">
+                  <span className="text-muted-foreground text-[11px] sm:text-xs">Lunch Break</span>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm truncate">01:00 PM - 02:00 PM</p>
+                </div>
+                <div className="p-2.5 sm:p-3 rounded-lg bg-card border border-border space-y-0.5 min-w-0">
+                  <span className="text-muted-foreground text-[11px] sm:text-xs">Workplace</span>
+                  <p className="font-semibold text-emerald-500 text-xs sm:text-sm truncate">{user?.workplace || user?.location || "Hybrid / Office"}</p>
+                </div>
+                <div className="p-2.5 sm:p-3 rounded-lg bg-card border border-border space-y-0.5 min-w-0">
+                  <span className="text-muted-foreground text-[11px] sm:text-xs">Department</span>
+                  <p className="font-semibold text-primary text-xs sm:text-sm truncate">{user?.department || "Engineering"}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Active Sprint & Burndown Tracker Widget */}
+          {(() => {
+            const activeSprint = sprints.find((s) => s.status === "Active");
+            const plannedSprint = sprints.find((s) => s.status === "Planned");
+            const currentSprint = activeSprint || plannedSprint;
+
+            if (!currentSprint && sprints.length === 0 && !loading) return null;
+
+            return (
+              <Card className="border border-border/80 shadow-xs overflow-hidden">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                      <i className="fa-solid fa-rocket text-primary text-base shrink-0" />
+                      <span className="truncate">{activeSprint ? "Active Agile Sprint" : "Upcoming Sprint Cycle"}</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm mt-0.5">
+                      {activeSprint ? "Current sprint objective, burndown velocity & milestones" : "Next scheduled sprint iteration for your team"}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                    {activeSprint ? (
+                      <Badge color="primary" className="font-semibold gap-1 text-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Sprint
+                      </Badge>
+                    ) : (
+                      <Badge color="warning" variant="soft" className="font-semibold text-xs">
+                        Planned
+                      </Badge>
+                    )}
+                    <Button asChild variant="outline" size="sm" className="h-7 text-xs shrink-0">
+                      <Link href="/dashboard/calendar?tab=sprints" className="gap-1 text-primary">
+                        Sprint Board <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-4 sm:p-5 space-y-4">
+                  {currentSprint ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-foreground">{currentSprint.name}</h4>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            <strong>Goal:</strong> {currentSprint.goal || "Complete sprint deliverables and key milestones"}
+                          </p>
+                        </div>
+                        <div className="text-left sm:text-right text-xs text-muted-foreground shrink-0 font-mono">
+                          <span>{new Date(currentSprint.startDate).toLocaleDateString()} – {new Date(currentSprint.endDate).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      {/* Burndown Progress */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <i className="fa-solid fa-fire text-amber-500 text-xs" /> Sprint Burndown Progress
+                          </span>
+                          <span className="text-primary font-bold">{currentSprint.burndownProgress || 0}% Completed</span>
+                        </div>
+                        <div className="h-2.5 bg-muted rounded-full overflow-hidden border border-border/40">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(currentSprint.burndownProgress || 0, 4)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Task Breakdown Stats */}
+                      <div className="grid grid-cols-3 gap-2 sm:gap-2.5 text-center text-xs pt-1">
+                        <div className="p-2 sm:p-2.5 rounded-lg bg-muted/40 border border-border/60 space-y-0.5">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">To Do</span>
+                          <p className="font-bold text-sm text-foreground">{currentSprint.todoTasks || 0}</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-0.5">
+                          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">In Progress</span>
+                          <p className="font-bold text-sm text-amber-600 dark:text-amber-400">{currentSprint.inProgressTasks || 0}</p>
+                        </div>
+                        <div className="p-2 sm:p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-0.5">
+                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Done</span>
+                          <p className="font-bold text-sm text-emerald-600 dark:text-emerald-400">{currentSprint.completedTasks || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground space-y-2">
+                      <i className="fa-solid fa-person-running text-3xl opacity-30 block mx-auto text-primary" />
+                      <p className="text-xs font-semibold text-foreground">No active sprint cycle planned</p>
+                      <p className="text-[11px]">Sprint iterations and burndown tracking will appear here once scheduled.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Assigned Tasks & Deliverables */}
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                  <i className="fa-solid fa-list-check text-emerald-500 text-base sm:text-lg shrink-0" />
+                  <span className="truncate">My Assigned Tasks</span>
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm mt-0.5">Deliverables assigned to you</CardDescription>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportTasksReport}
+                  disabled={exportingReport === "tasks"}
+                  className="h-8 text-xs gap-1.5 font-semibold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer shadow-xs shrink-0"
+                  title="Download Project Tasks Detailed CSV Report"
+                >
+                  <i className={cn("fa-solid text-xs", exportingReport === "tasks" ? "fa-spinner fa-spin" : "fa-file-csv")} />
+                  Export Tasks
+                </Button>
+                <Button asChild variant="ghost" size="sm" className="h-8 text-xs shrink-0">
+                  <Link href="/dashboard/projects" className="gap-1 text-primary">
+                    View All Tasks <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">Loading assigned tasks...</p>
+              ) : tasks.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">No tasks assigned yet.</p>
+              ) : (
+                tasks.slice(0, 5).map((t) => (
+                  <Link key={t._id} href="/dashboard/projects" className="block group">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-lg border border-border bg-card hover:bg-accent/40 transition-colors cursor-pointer group-hover:border-primary/50 gap-2">
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">{t.title}</p>
+                        <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
+                          <span>Priority: <strong>{t.priority}</strong></span>
+                          {t.dueDate && <span>| Due: {new Date(t.dueDate).toLocaleDateString()}</span>}
+                        </p>
+                      </div>
+                      <Badge color={t.priority === "High" || t.priority === "Urgent" ? "destructive" : t.status === "Done" ? "success" : "primary"} className="self-start sm:self-auto shrink-0 text-xs">
+                        {t.status}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column (1 span): Celebrations, Announcements & Holidays */}
+        <div className="space-y-6">
+          {/* Upcoming Celebrations Widget */}
+          <UpcomingCelebrationsWidget
+            currentUserId={user?.id || user?._id}
+            currentUserName={user?.name}
+            currentUserRole={user?.role}
+            onCelebrationStateLoaded={(data) => setCelebrationData(data)}
+          />
+
+          {/* Upcoming Holidays Widget */}
+          <UpcomingHolidaysWidget />
+
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-bullhorn text-amber-500 text-base shrink-0" />
+                  <span className="truncate">Workspace Announcements</span>
+                </CardTitle>
+                <CardDescription className="text-xs mt-0.5">Company notices and team updates</CardDescription>
+              </div>
+              <Button asChild variant="outline" size="sm" className="h-7 text-xs self-start sm:self-auto shrink-0">
+                <Link href="/dashboard/chat" className="gap-1 text-primary">
+                  View Board <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                </Link>
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? (
+                <p className="text-xs text-muted-foreground py-2 text-center">Loading announcements...</p>
+              ) : announcements.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  <i className="fa-solid fa-bullhorn text-2xl mb-1 opacity-25 block" />
+                  <p className="text-xs font-semibold text-foreground">No announcements yet</p>
+                  <p className="text-[11px] mt-0.5">Company notices will appear here.</p>
+                </div>
+              ) : (
+                announcements.slice(0, 3).map((a) => (
+                  <Link key={a._id} href="/dashboard/chat" className="block group">
+                    <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1 hover:bg-accent/40 transition-colors group-hover:border-primary/50 cursor-pointer">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-xs text-foreground flex items-center gap-1 group-hover:text-primary transition-colors truncate min-w-0 flex-1">
+                          {a.pinned && <i className="fa-solid fa-thumbtack text-amber-500 text-[10px] shrink-0" />}
+                          <span className="truncate">{a.title}</span>
+                        </span>
+                        <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
+                          {a.createdAt ? new Date(a.createdAt).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                        {a.content}
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* My Leave Requests — visible when viewTeamLeave permission is granted */}
+          {can("viewTeamLeave") && (
+            <Card className="border border-border">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3">
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <i className="fa-solid fa-calendar-week text-sky-500 text-base shrink-0" />
+                    <span className="truncate">My Leave Requests</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-0.5">Your submitted leave history &amp; statuses</CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm" className="h-7 text-xs self-start sm:self-auto shrink-0">
+                  <Link href="/dashboard/hr" className="gap-1 text-primary">
+                    View All <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {loading ? (
+                  <p className="text-xs text-muted-foreground py-3 text-center">Loading team leaves...</p>
+                ) : teamLeaves.length === 0 ? (
+                  <div className="text-center py-5 text-muted-foreground">
+                    <i className="fa-solid fa-calendar-check text-3xl mb-2 opacity-30 block" />
+                    <p className="text-xs font-semibold text-foreground">No leave requests yet</p>
+                    <p className="text-[11px] mt-0.5">Team leave requests will appear here.</p>
+                  </div>
+                ) : (
+                  teamLeaves.slice(0, 6).map((l) => (
+                    <Link key={l._id} href="/dashboard/hr" className="block group">
+                      <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/40 transition-colors group-hover:border-primary/50 cursor-pointer">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-7 w-7 rounded-full bg-sky-500/20 text-sky-500 font-bold flex items-center justify-center text-xs border border-sky-500/30 shrink-0">
+                            {l.userName?.charAt(0) || "?"}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">{l.userName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {l.type} · {new Date(l.startDate).toLocaleDateString()} – {new Date(l.endDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          color={l.status === "Approved" ? "success" : l.status === "Rejected" ? "destructive" : "warning"}
+                          variant="soft"
+                          className="text-[10px] shrink-0 ml-2"
+                        >
+                          {l.status}
+                        </Badge>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Upload Requested Document Modal */}
+      {uploadModalDoc && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/20">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <i className="fa-solid fa-file-arrow-up text-primary" /> Upload Document
+              </h3>
+              <button
+                type="button"
+                onClick={() => setUploadModalDoc(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark text-xs" />
+              </button>
+            </div>
+            <form onSubmit={handleEmployeeDocSubmit} className="p-4 space-y-4">
+              <div className="p-3 rounded-xl bg-muted/30 border border-border space-y-1">
+                <p className="text-xs font-bold text-foreground">{uploadModalDoc.title}</p>
+                <p className="text-[11px] text-muted-foreground">Category: {uploadModalDoc.category || "Document"}</p>
+                {uploadModalDoc.notes && (
+                  <p className="text-[11px] text-primary/90 font-medium">Instructions: {uploadModalDoc.notes}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Select File *</label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"
+                  onChange={(e) => setUploadDocFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-foreground file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                />
+                <p className="text-[10px] text-muted-foreground">Supported formats: PDF, PNG, JPG, DOCX, XLSX (Max 25 MB)</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUploadModalDoc(null)}
+                  className="text-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={uploadingDoc || !uploadDocFile}
+                  className="text-xs font-semibold gap-1.5 cursor-pointer shadow-xs"
+                >
+                  {uploadingDoc ? (
+                    <><i className="fa-solid fa-spinner fa-spin text-xs" /> Uploading...</>
+                  ) : (
+                    <><i className="fa-solid fa-cloud-arrow-up text-xs" /> Submit Document</>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Combined PDF Export Filters Modal */}
+      <CombinedPdfExportModal
+        isOpen={showPdfExportModal}
+        onClose={() => setShowPdfExportModal(false)}
+        user={user}
+        initialTasks={tasks}
+        initialTimesheets={timesheets}
+        onSuccessToast={(msg) => showToast(msg, "success")}
+      />
+
+      {/* ── Received Celebration Wishes Modal ── */}
+      {celebrationData && (
+        <BirthdayWishesModal
+          isOpen={isWishesModalOpen}
+          onClose={() => setIsWishesModalOpen(false)}
+          wishes={celebrationData.receivedWishes}
+          sentWishes={celebrationData.sentWishes}
+          currentUserId={user?.id || user?._id || ""}
+          currentUserName={user?.name || "You"}
+          currentUserRole={user?.role}
+        />
+      )}
+
+      {/* ── Shift Extension Request Modal ── */}
+      {showExtensionModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setShowExtensionModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col text-foreground animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-border/80 bg-amber-500/5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center text-base border border-amber-500/25 shrink-0 shadow-xs">
+                  <i className="fa-solid fa-clock-rotate-left" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-foreground">
+                    {todayAttendanceRecord?.extensionRejected ? "Submit Revised Shift Extension" : "Request Additional Shift Time"}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Submit for Admin, OPS, and HR authorization</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExtensionModal(false)}
+                className="w-8 h-8 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center text-xs cursor-pointer min-h-[36px]"
+              >
+                <i className="fa-solid fa-xmark text-sm" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto overscroll-contain flex-1 text-xs">
+              {/* Prior Rejection Alert if applicable */}
+              {Boolean(todayAttendanceRecord?.extensionRejected && !todayAttendanceRecord?.extensionApproved) && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-300 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <i className="fa-solid fa-circle-exclamation text-rose-600 dark:text-rose-400" />
+                    <span>Prior Extension Request Declined</span>
+                  </div>
+                  {todayAttendanceRecord?.extensionRejectionReason && (
+                    <p className="text-[11px] text-muted-foreground italic bg-background/50 p-2 rounded border border-rose-500/15">
+                      &ldquo;{todayAttendanceRecord.extensionRejectionReason}&rdquo;
+                    </p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    Please provide an amended duration or clear justification below.
+                  </p>
+                </div>
+              )}
+
+              {/* Duration Presets */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <i className="fa-solid fa-stopwatch text-primary text-xs" />
+                    <span>Choose Extension Duration:</span>
+                  </span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                    +{extensionRequestedHours >= 1 ? `${extensionRequestedHours.toFixed(1)} hrs` : `${Math.round(extensionRequestedHours * 60)} mins`}
+                  </span>
+                </label>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { hours: 0.5, label: "30 Mins", sub: "Wrap-up" },
+                    { hours: 1.0, label: "1 Hour", sub: "Standard" },
+                    { hours: 2.0, label: "2 Hours", sub: "Deep Focus" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.hours}
+                      type="button"
+                      onClick={() => setExtensionRequestedHours(preset.hours)}
+                      className={cn(
+                        "py-2.5 px-2 rounded-xl text-xs font-bold font-mono border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 min-h-[44px]",
+                        extensionRequestedHours === preset.hours
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                          : "bg-card border-border/80 text-foreground hover:border-primary/50"
+                      )}
+                    >
+                      <span className="text-xs sm:text-sm">+{preset.label}</span>
+                      <span className="text-[9px] font-normal opacity-80">{preset.sub}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <span className="text-[11px] text-muted-foreground">Custom duration:</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0.5"
+                      max="6"
+                      step="0.5"
+                      value={extensionRequestedHours}
+                      onChange={(e) => setExtensionRequestedHours(Math.max(0.5, Math.min(6, Number(e.target.value) || 1)))}
+                      className="w-24 px-2.5 py-1.5 rounded-lg border border-border bg-input text-xs font-mono font-bold text-foreground text-center"
+                    />
+                    <span className="text-xs text-muted-foreground">hours</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <i className="fa-solid fa-message-lines text-primary text-xs" />
+                  Reason / Justification <span className="text-destructive">*</span>
+                </label>
+                <textarea
+                  value={extensionReason}
+                  onChange={(e) => setExtensionReason(e.target.value)}
+                  placeholder="Explain why additional shift time is needed (e.g. critical client bug fix, testing handover, deployment)..."
+                  rows={3}
+                  className="w-full text-xs resize-none rounded-xl border border-border bg-input px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-[11px] text-muted-foreground flex items-start gap-2">
+                <i className="fa-solid fa-shield-check text-primary text-xs mt-0.5 shrink-0" />
+                <p>
+                  This request will be routed directly to <strong>Admin</strong>, <strong>OPS</strong>, <strong>HR</strong>, and your <strong>Department Manager</strong>. You will receive an in-app alert upon decision.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 sm:p-4 border-t border-border/80 flex items-center justify-end gap-2.5 shrink-0 bg-muted/20">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowExtensionModal(false)}
+                className="min-h-[38px] text-xs cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={submittingExtension || !extensionReason.trim()}
+                onClick={handleSubmitExtensionRequest}
+                className="min-h-[38px] px-4 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-xs gap-1.5 disabled:opacity-50"
+              >
+                <i className={cn("fa-solid text-xs", submittingExtension ? "fa-spinner fa-spin" : "fa-paper-plane")} />
+                <span>{submittingExtension ? "Submitting..." : `Submit Request (+${extensionRequestedHours.toFixed(1)}h)`}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

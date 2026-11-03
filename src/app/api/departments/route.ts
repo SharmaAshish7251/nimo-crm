@@ -1,0 +1,104 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { connectToDatabase } from "@/lib/db";
+import { Department } from "@/models/Department";
+import mongoose from "mongoose";
+
+const DEFAULT_DEPARTMENTS = [
+  { name: "Management", description: "Executive leadership and corporate operations", code: "MGMT" },
+  { name: "Engineering", description: "Software development and technical infrastructure", code: "ENG" },
+  { name: "Design", description: "UI/UX design, branding, and visual assets", code: "DES" },
+  { name: "Marketing", description: "Growth, content strategy, and campaign management", code: "MKT" },
+];
+
+/**
+ * GET: Fetch all departments for the logged-in tenant.
+ * Auto-seeds default departments if none exist for the tenant.
+ */
+export async function GET() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await connectToDatabase();
+
+    const tenantObjectId = new mongoose.Types.ObjectId(session.tenantId);
+    let departments = await Department.find({ tenantId: tenantObjectId })
+      .populate("managerId", "name email role photoUrl")
+      .sort({ name: 1 });
+
+    if (departments.length === 0) {
+      // Auto-seed default departments for tenant
+      const defaultDocs = DEFAULT_DEPARTMENTS.map((dept) => ({
+        ...dept,
+        tenantId: tenantObjectId,
+      }));
+      departments = await Department.insertMany(defaultDocs);
+      departments = await Department.find({ tenantId: tenantObjectId })
+        .populate("managerId", "name email role photoUrl")
+        .sort({ name: 1 });
+    }
+
+    return NextResponse.json({ departments });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API GET Departments error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * POST: Create a new department (Admin/Manager only).
+ */
+export async function POST(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { isSubAdminRole } = await import("@/lib/roles");
+    if (session.role !== "Admin" && session.role !== "Manager" && !isSubAdminRole(session.role)) {
+      return NextResponse.json({ error: "Forbidden: Admins or Managers only" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { name, description, code, managerId } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Department name is required" }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    const tenantObjectId = new mongoose.Types.ObjectId(session.tenantId);
+
+    const escapedName = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const existing = await Department.findOne({
+      tenantId: tenantObjectId,
+      name: { $regex: new RegExp(`^${escapedName}$`, "i") },
+    });
+
+    if (existing) {
+      return NextResponse.json({ error: "A department with this name already exists" }, { status: 400 });
+    }
+
+    const newDepartment = await Department.create({
+      name: name.trim(),
+      description: description ? description.trim() : "",
+      code: code ? code.trim().toUpperCase() : "",
+      managerId: managerId ? new mongoose.Types.ObjectId(managerId) : undefined,
+      tenantId: tenantObjectId,
+    });
+
+    const populated = await Department.findById(newDepartment._id).populate("managerId", "name email role photoUrl");
+
+    return NextResponse.json({ success: true, department: populated || newDepartment }, { status: 201 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API POST Department error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

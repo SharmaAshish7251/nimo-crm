@@ -1,0 +1,83 @@
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  compress: true,
+  devIndicators: false,
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Prevent thread exhaustion on constrained build servers (os error 11 / SIGABRT).
+  // TOKIO_WORKER_THREADS=1 in the build script caps Rust/SWC Tokio thread pool per worker.
+  // experimental.cpus limits Next.js concurrent page-data workers (default = number of routes).
+  staticPageGenerationTimeout: 120,
+  experimental: {
+    // Cap concurrent page-data workers. Without this Next.js defaults to 1 per route (63).
+    cpus: 2,
+    optimizePackageImports: [
+      "framer-motion",
+      "@iconify/react",
+      "next-themes",
+      "recharts",
+      "date-fns",
+      "@radix-ui/react-avatar",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-tooltip",
+      "@radix-ui/react-collapsible",
+      "@radix-ui/react-select",
+      "@radix-ui/react-checkbox",
+      "@radix-ui/react-switch",
+    ],
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        port: "",
+        pathname: "/**",
+      },
+      // Note: img.clerk.com removed — Clerk is not used; custom JWT auth is in place
+    ],
+  },
+  // Security headers applied to all routes
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+      "style-src 'self' 'unsafe-inline' https:",
+      "img-src 'self' blob: data: https:",
+      "font-src 'self' https: data:",
+      "connect-src 'self' https: wss:",
+      "frame-src 'self' blob: data: https:",
+      "object-src 'self' blob: data:",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
+    return [
+      {
+        source: "/((?!_next/static|_next/image|favicon.ico).*)",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, max-age=0, must-revalidate" },
+          { key: "CDN-Cache-Control", value: "no-cache, no-store, max-age=0, must-revalidate" },
+          { key: "Surrogate-Control", value: "no-store" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+          { key: "X-XSS-Protection", value: "1; mode=block" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "Content-Security-Policy", value: csp },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;

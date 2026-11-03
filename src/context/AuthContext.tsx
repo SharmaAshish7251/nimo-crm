@@ -1,0 +1,176 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { logoutAction } from "@/app/actions/auth";
+
+interface UserProfile {
+  _id: string;
+  name: string;
+  email: string;
+  role: "Admin" | "OPS" | "Manager" | "HR" | "Employee";
+  tenantId: {
+    _id: string;
+    name: string;
+    slug: string;
+  };
+  dob?: string | Date;
+  department?: string;
+  shiftName?: string;
+  shiftTime?: string;
+  employmentType?: string;
+  salary?: number;
+  bankDetails?: {
+    bankName?: string;
+    accountNo?: string;
+    ifscCode?: string;
+    upiId?: string;
+  };
+  workplace?: string;
+  location?: string;
+  status?: string;
+  skills?: string[];
+  bio?: string;
+  phone?: string;
+  photoUrl?: string;
+  resumeUrl?: string;
+  resumeFileName?: string;
+  resumeFileSize?: number;
+  resumeUpdatedAt?: string | Date;
+  socialLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    github?: string;
+    website?: string;
+    instagram?: string;
+    facebook?: string;
+  };
+  lastLoginIp?: string;
+  lastLoginDevice?: {
+    type?: string;
+    os?: string;
+    browser?: string;
+    userAgent?: string;
+  };
+  loginHistory?: Array<{
+    loggedInAt: string | Date;
+    ip?: string;
+    deviceType?: string;
+    os?: string;
+    browser?: string;
+    userAgent?: string;
+  }>;
+  lastActiveAt?: string | Date;
+  forcePasswordReset?: boolean;
+  signatureUrl?: string;
+}
+
+interface AuthContextType {
+  user: UserProfile | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  // check the session is valid or not
+  // if not valid redirect to the login page
+  // if valid set the user
+  const fetchUser = useCallback(async () => {
+    const executeFetch = async (retried = false): Promise<void> => {
+      try {
+        const response = await fetch("/api/auth/me", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setUser(data.user);
+            return;
+          }
+        }
+
+        if (response.status === 401) {
+          const errData = await response.json().catch(() => ({}));
+          const reason = errData?.error === "Account suspended" ? "suspended" : "account_removed";
+          setUser(null);
+          if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+            window.location.href = `/login?error=${reason}`;
+            return;
+          }
+        }
+
+        if (!retried) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          return await executeFetch(true);
+        }
+
+        setUser(null);
+        if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+          window.location.href = "/login?error=account_removed";
+          return;
+        }
+      } catch (error) {
+        console.error("Error fetching user session:", error);
+        if (!retried) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          return await executeFetch(true);
+        }
+        setUser(null);
+        if (typeof window !== "undefined" && window.location.pathname.startsWith("/dashboard")) {
+          router.push("/login");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    await executeFetch();
+  }, [router]);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await logoutAction();
+      // logoutAction calls redirect("/login") internally which throws NEXT_REDIRECT.
+      // The lines below are fallbacks in case the redirect does not throw (e.g. client-only env).
+      setUser(null);
+      router.push("/login");
+    } catch (error: any) {
+      // Re-throw NEXT_REDIRECT so Next.js can process the navigation
+      if (error?.digest?.startsWith("NEXT_REDIRECT")) throw error;
+      console.error("Logout failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, logout, refreshUser: fetchUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+const defaultAuthContext: AuthContextType = {
+  user: null,
+  loading: false,
+  logout: async () => {},
+  refreshUser: async () => {},
+};
+
+export function useAuthContext() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    return defaultAuthContext;
+  }
+  return context;
+}
+

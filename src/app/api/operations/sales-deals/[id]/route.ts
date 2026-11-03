@@ -1,0 +1,119 @@
+import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/db";
+import { SalesDeal } from "@/models/SalesDeal";
+import { ActivityLog } from "@/models/ActivityLog";
+import { requireTenantSession, isAuthError } from "@/lib/auth-guard";
+import mongoose from "mongoose";
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, userObjectId, session } = authResult;
+
+    const body = await request.json();
+    await connectToDatabase();
+
+    const { dealName, clientAccount, clientName, dealValue, value, stage, probability, owner, expectedClose, expectedCloseDate, notes, priority, venture, currency } = body;
+    const updatePayload: Record<string, unknown> = {};
+    if (dealName !== undefined) updatePayload.dealName = dealName;
+    if (clientAccount !== undefined || clientName !== undefined) updatePayload.clientAccount = clientAccount || clientName;
+    if (dealValue !== undefined || value !== undefined) updatePayload.dealValue = Number(dealValue !== undefined ? dealValue : value);
+    if (stage !== undefined) updatePayload.stage = stage;
+    if (probability !== undefined) updatePayload.probability = Number(probability);
+    if (owner !== undefined) updatePayload.owner = owner;
+    if (expectedClose !== undefined || expectedCloseDate !== undefined) updatePayload.expectedClose = String(expectedClose || expectedCloseDate || "");
+    if (venture !== undefined) updatePayload.venture = venture;
+    if (currency !== undefined) updatePayload.currency = currency;
+    if (notes !== undefined) updatePayload.notes = notes;
+
+    const existingDeal = await SalesDeal.findOne({
+      _id: new mongoose.Types.ObjectId(id),
+      tenantId: tenantObjectId,
+    });
+
+    if (!existingDeal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
+    const isStageChanged = stage !== undefined && stage !== existingDeal.stage;
+    const historyEntry = isStageChanged
+      ? {
+          fromStage: existingDeal.stage,
+          toStage: stage,
+          changedBy: userObjectId,
+          changedByName: session.userName || "Admin",
+          notes: notes !== undefined ? String(notes) : "",
+          timestamp: new Date(),
+        }
+      : null;
+
+    const updateOps: Record<string, unknown> = { $set: updatePayload };
+    if (historyEntry) {
+      updateOps.$push = { stageHistory: historyEntry };
+    }
+
+    const deal = await SalesDeal.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(id), tenantId: tenantObjectId },
+      updateOps,
+      { returnDocument: "after" }
+    );
+
+    if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
+    await ActivityLog.create({
+      tenantId: tenantObjectId,
+      userId: userObjectId,
+      userName: session.userName,
+      userRole: session.role,
+      action: isStageChanged ? "SALES_DEAL_STAGE_CHANGED" : "SALES_DEAL_UPDATED",
+      targetName: deal.dealName,
+      details: isStageChanged
+        ? `Moved deal "${deal.dealName}" from ${existingDeal.stage} to ${stage}${notes ? ` - Reason: ${notes}` : ""}`
+        : `Updated sales deal "${deal.dealName}"`,
+    });
+
+    return NextResponse.json({ deal });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const authResult = await requireTenantSession(["Admin", "Sub Admin", "OPS"]);
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, userObjectId, session } = authResult;
+
+    await connectToDatabase();
+
+    const deal = await SalesDeal.findOneAndDelete({
+      _id: new mongoose.Types.ObjectId(id),
+      tenantId: tenantObjectId,
+    });
+
+    if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
+    await ActivityLog.create({
+      tenantId: tenantObjectId,
+      userId: userObjectId,
+      userName: session.userName,
+      userRole: session.role,
+      action: "SALES_DEAL_DELETED",
+      targetName: deal.dealName,
+      details: `Deleted sales deal "${deal.dealName}"`,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

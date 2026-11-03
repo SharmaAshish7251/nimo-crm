@@ -1,0 +1,416 @@
+import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/db";
+import { HROnboarding } from "@/models/HROnboarding";
+import { requireTenantSession, isAuthError } from "@/lib/auth-guard";
+import { notify, notifyAdmins } from "@/lib/notify";
+
+import { isSubAdminRole } from "@/lib/roles";
+
+export async function GET(req: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session, userObjectId } = authResult;
+
+    await connectToDatabase();
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const employmentType = searchParams.get("employmentType");
+
+    const query: any = { tenantId: tenantObjectId };
+    if (type) query.type = type;
+    if (employmentType) query.employmentType = employmentType;
+
+    const { getUserDataScope } = await import("@/lib/dataScope");
+    const dataScope = await getUserDataScope(session);
+    const isAdmin = Boolean(session.role && session.role.trim().toLowerCase() === "admin");
+    const canManageChecklists =
+      isAdmin ||
+      isSubAdminRole(session.role) ||
+      dataScope.canViewFeature("manageCompanyChecklists");
+
+    if (!canManageChecklists) {
+      query.userId = userObjectId;
+    } else {
+      const { getHRAccessScope } = await import("@/lib/hrIsolation");
+      const scope = await getHRAccessScope(session, tenantObjectId, userObjectId);
+      if (scope.allowedUserIds) {
+        query.userId = { $in: scope.allowedUserIds };
+      }
+    }
+
+    const checklists = await HROnboarding.find(query)
+      .populate("onboardedBy.hrId", "name email role")
+      .sort({ createdAt: -1 })
+      .lean();
+    return NextResponse.json({ checklists });
+  } catch (error: unknown) {
+    console.error("GET /api/hr/checklists error:", error);
+    return NextResponse.json({ error: "Failed to fetch checklists" }, { status: 500 });
+  }
+}
+
+function getDefaultChecklistItems(type: "Onboarding" | "Offboarding", employmentType: string) {
+  if (type === "Onboarding") {
+    switch (employmentType) {
+      case "Contractor":
+        return [
+          { id: "1", title: "Sign Independent Contractor Agreement / MSA", category: "Contract", completed: false },
+          { id: "2", title: "Sign Contractor Non-Disclosure Agreement (NDA)", category: "NDA", completed: false },
+          { id: "3", title: "Statement of Work (SOW) & Deliverables Alignment", category: "KRA Sign-off", completed: false },
+          { id: "4", title: "Tax Identification & Invoicing Setup (W-9 / GST / PAN)", category: "Document", completed: false },
+          { id: "5", title: "Configure Role-Based Tool & Repository Access", category: "Access", completed: false },
+          { id: "6", title: "Issue Hardware Asset or Bring-Your-Own-Device Registration", category: "IT Asset", completed: false },
+          { id: "7", title: "Security, Confidentiality & IP Compliance Certification", category: "Compliance", completed: false },
+        ];
+      case "Freelancer":
+        return [
+          { id: "1", title: "Sign Freelance Engagement Letter / Service Agreement", category: "Contract", completed: false },
+          { id: "2", title: "Intellectual Property Assignment & NDA", category: "NDA", completed: false },
+          { id: "3", title: "Milestone Schedule & Deliverables Sign-off", category: "KRA Sign-off", completed: false },
+          { id: "4", title: "Payment Details & Billing Method Verification", category: "Document", completed: false },
+          { id: "5", title: "Grant Project-Scoped Workspace & Repository Access", category: "Access", completed: false },
+        ];
+      case "Intern":
+        return [
+          { id: "1", title: "Educational Institution NOC & Identity Proof", category: "Document", completed: false },
+          { id: "2", title: "Sign Internship Agreement & Confidentiality Terms", category: "NDA", completed: false },
+          { id: "3", title: "Mentor Assignment & Learning Goals Sign-off", category: "KRA Sign-off", completed: false },
+          { id: "4", title: "Issue Workstation & Development Environment Setup", category: "IT Asset", completed: false },
+          { id: "5", title: "Provision Communication & Learning Portal Access", category: "Access", completed: false },
+        ];
+      case "Part-Time":
+        return [
+          { id: "1", title: "Submit Identity & Address Proof", category: "Document", completed: false },
+          { id: "2", title: "Part-Time Employment Agreement & Working Hours Schedule", category: "Contract", completed: false },
+          { id: "3", title: "Sign Non-Disclosure Agreement (NDA)", category: "NDA", completed: false },
+          { id: "4", title: "KRA & Shift Schedule Alignment", category: "KRA Sign-off", completed: false },
+          { id: "5", title: "Provision System & Communication Access", category: "Access", completed: false },
+        ];
+      case "Permanent":
+      default:
+        return [
+          { id: "1", title: "Submit Identity & Address Proof", category: "Document", completed: false },
+          { id: "2", title: "Sign Non-Disclosure Agreement (NDA)", category: "NDA", completed: false },
+          { id: "3", title: "KRA & Job Description Sign-off", category: "KRA Sign-off", completed: false },
+          { id: "4", title: "Issue Work Laptop & Access Pass", category: "IT Asset", completed: false },
+          { id: "5", title: "Provision CRM & Email Accounts", category: "Access", completed: false },
+        ];
+    }
+  } else {
+    // Offboarding
+    switch (employmentType) {
+      case "Contractor":
+      case "Freelancer":
+        return [
+          { id: "1", title: "SOW Deliverables Verification & Milestone Acceptance", category: "KRA Sign-off", completed: false },
+          { id: "2", title: "Final Timesheet / Invoice Submission & Audit", category: "Document", completed: false },
+          { id: "3", title: "Revoke System, Cloud & Code Repository Access", category: "Access", completed: false },
+          { id: "4", title: "Return Company Assets & Hardware (if issued)", category: "IT Asset", completed: false },
+          { id: "5", title: "Contract Completion & Mutual NDA Confirmation", category: "Contract", completed: false },
+        ];
+      case "Intern":
+        return [
+          { id: "1", title: "Project Handover & Mentor Evaluation Sign-off", category: "KRA Sign-off", completed: false },
+          { id: "2", title: "Return Hardware Assets & Access Cards", category: "IT Asset", completed: false },
+          { id: "3", title: "Revoke System & Portal Access", category: "Access", completed: false },
+          { id: "4", title: "Internship Completion Certificate Issuance", category: "Document", completed: false },
+          { id: "5", title: "Exit Feedback & Experience Review", category: "Other", completed: false },
+        ];
+      case "Part-Time":
+      case "Permanent":
+      default:
+        return [
+          { id: "1", title: "Handover Project Repos & Documentation", category: "KRA Sign-off", completed: false },
+          { id: "2", title: "Return Company Laptop & Hardware", category: "IT Asset", completed: false },
+          { id: "3", title: "Revoke Cloud & CRM Access Permissions", category: "Access", completed: false },
+          { id: "4", title: "Exit Interview & Feedback Submission", category: "Other", completed: false },
+          { id: "5", title: "No Dues Clearance Certificate Sign-off", category: "Document", completed: false },
+        ];
+    }
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, userObjectId, session } = authResult;
+
+    const { getUserDataScope } = await import("@/lib/dataScope");
+    const dataScope = await getUserDataScope(session);
+    const isAdmin = Boolean(session.role && session.role.trim().toLowerCase() === "admin");
+    const canManageChecklists =
+      isAdmin ||
+      isSubAdminRole(session.role) ||
+      dataScope.canViewFeature("manageCompanyChecklists");
+
+    if (!canManageChecklists) {
+      return NextResponse.json(
+        { error: "Forbidden: You do not have permission to create or manage checklists" },
+        { status: 403 }
+      );
+    }
+
+    await connectToDatabase();
+    const body = await req.json();
+    const { userId, userName, userEmail, type, items, dueDate, employmentType = "Permanent", contractDetails } = body;
+
+    if (!userId || !userName || !type) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const defaultItems = getDefaultChecklistItems(type, employmentType);
+
+    let finalItems = items && items.length > 0 ? items : defaultItems;
+
+    if (body.initialAttachments) {
+      const { offerLetter, nda } = body.initialAttachments;
+      finalItems = finalItems.map((item: any) => {
+        if (
+          nda &&
+          (item.category === "NDA" ||
+            item.title.toLowerCase().includes("nda") ||
+            item.title.toLowerCase().includes("non-disclosure") ||
+            item.title.toLowerCase().includes("confidentiality"))
+        ) {
+          return {
+            ...item,
+            documentUrl: nda.url,
+            documentName: nda.name,
+          };
+        }
+        if (
+          offerLetter &&
+          (item.category === "Contract" ||
+            item.title.toLowerCase().includes("offer letter") ||
+            item.title.toLowerCase().includes("agreement") ||
+            item.title.toLowerCase().includes("contract") ||
+            item.title.toLowerCase().includes("engagement letter"))
+        ) {
+          return {
+            ...item,
+            documentUrl: offerLetter.url,
+            documentName: offerLetter.name,
+          };
+        }
+        return item;
+      });
+    }
+
+    // If user requested to save this custom items list as a new reusable preset
+    if (body.saveAsPreset && body.presetName && typeof body.presetName === "string" && body.presetName.trim()) {
+      try {
+        const { ChecklistPreset } = await import("@/models/ChecklistPreset");
+        await ChecklistPreset.create({
+          tenantId: tenantObjectId,
+          name: body.presetName.trim(),
+          description: `Preset created during ${userName} onboarding`,
+          targetEmploymentType: employmentType || "All",
+          items: finalItems.map((it: any, idx: number) => ({
+            id: it.id || String(idx + 1),
+            title: it.title,
+            category: it.category || "Document",
+            required: it.required !== undefined ? Boolean(it.required) : true,
+          })),
+          isSystemDefault: false,
+          createdBy: {
+            userId: userObjectId,
+            userName: session.userName || "HR Team",
+          },
+        });
+      } catch (presetErr) {
+        console.warn("Optional saveAsPreset failed:", presetErr);
+      }
+    }
+
+    const checklist = await HROnboarding.create({
+      tenantId: tenantObjectId,
+      userId,
+      userName,
+      userEmail: userEmail || "",
+      employmentType: employmentType || "Permanent",
+      contractDetails: contractDetails || undefined,
+      type,
+      status: "In Progress",
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      items: finalItems,
+      onboardedBy: {
+        hrId: userObjectId,
+        hrName: session.userName,
+        date: new Date(),
+      },
+    });
+
+    // Also update User record with onboardedBy details
+    try {
+      const { User } = await import("@/models/User");
+      await User.findByIdAndUpdate(userId, {
+        $set: {
+          onboardedBy: {
+            hrId: userObjectId,
+            hrName: session.userName,
+            date: new Date(),
+          },
+        },
+      });
+    } catch (e) {
+      console.warn("Failed to update User.onboardedBy on checklist creation:", e);
+    }
+
+    // Notify employee of assigned checklist
+    await notify(tenantObjectId, userId, {
+      title: `New ${type} Checklist Assigned`,
+      message: `You have been assigned a new ${type} checklist.`,
+      type: "hr",
+      linkUrl: "/dashboard/hr?tab=checklists",
+    });
+
+    return NextResponse.json({ checklist }, { status: 201 });
+  } catch (error: unknown) {
+    console.error("POST /api/hr/checklists error:", error);
+    return NextResponse.json({ error: "Failed to create checklist" }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session, userObjectId } = authResult;
+
+    await connectToDatabase();
+    const body = await req.json();
+    const { checklistId, itemId, completed, notes, documentUrl, documentName, status, reason } = body;
+
+    const checklist = await HROnboarding.findOne({
+      _id: checklistId,
+      tenantId: tenantObjectId,
+    });
+
+    if (!checklist) {
+      return NextResponse.json({ error: "Checklist not found" }, { status: 404 });
+    }
+
+    const isOwner = checklist.userId.toString() === userObjectId.toString();
+    const { getUserDataScope } = await import("@/lib/dataScope");
+    const dataScope = await getUserDataScope(session);
+    const isAdmin = Boolean(session.role && session.role.trim().toLowerCase() === "admin");
+    const canManageChecklists =
+      isAdmin ||
+      isSubAdminRole(session.role) ||
+      dataScope.canViewFeature("manageCompanyChecklists");
+
+    if (!isOwner && !canManageChecklists) {
+      return NextResponse.json({ error: "Forbidden: You do not have permission to manage checklists" }, { status: 403 });
+    }
+
+    // 1. Handle Status Change (In Progress, On Hold, Completed, Discarded) with Audit History
+    if (status) {
+      if (!canManageChecklists) {
+        return NextResponse.json({ error: "Forbidden: You do not have permission to change checklist status" }, { status: 403 });
+      }
+      const validStatuses = ["In Progress", "Completed", "Pending Review", "On Hold", "Discarded"];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` }, { status: 400 });
+      }
+      const previousStatus = checklist.status || "In Progress";
+      if (previousStatus !== status) {
+        checklist.status = status;
+        if (!checklist.statusHistory) checklist.statusHistory = [];
+        checklist.statusHistory.push({
+          fromStatus: previousStatus,
+          toStatus: status,
+          changedBy: {
+            userId: userObjectId,
+            userName: session.userName || "HR Team",
+            role: session.role || "HR",
+          },
+          changedAt: new Date(),
+          reason: reason ? String(reason).trim() : "",
+        });
+
+        if (status === "Completed") {
+          checklist.completedDate = new Date();
+        } else if (status === "Discarded" || status === "On Hold") {
+          checklist.completedDate = undefined;
+        }
+
+        // Notify admins/HR if discarded
+        if (status === "Discarded") {
+          try {
+            const { notifyAdmins } = await import("@/lib/notify");
+            await notifyAdmins(tenantObjectId, {
+              title: `${checklist.type} Checklist Discarded`,
+              message: `${checklist.userName}'s ${checklist.type} workflow was discarded by ${session.userName}.${reason ? ` Reason: ${reason}` : ""}`,
+              type: "hr",
+              linkUrl: "/dashboard/hr?tab=checklists",
+            }, ["Admin", "OPS"]);
+          } catch (notifErr) {
+            console.warn("Failed to notify on discard:", notifErr);
+          }
+        }
+      }
+    }
+
+    // 2. Handle Checklist Item Toggle / Completion
+    if (itemId !== undefined) {
+      const item = checklist.items.find((i: any) => i.id === itemId);
+      if (item) {
+        item.completed = completed;
+        item.completedAt = completed ? new Date() : undefined;
+        item.completedBy = session.userName;
+        if (notes !== undefined) item.notes = notes;
+        if (documentUrl !== undefined) item.documentUrl = documentUrl;
+        if (documentName !== undefined) item.documentName = documentName;
+      }
+
+      const allDone = checklist.items.every((i: any) => i.completed);
+      if (allDone && checklist.status !== "Discarded") {
+        const prev = checklist.status;
+        checklist.status = "Completed";
+        checklist.completedDate = new Date();
+        if (prev !== "Completed") {
+          if (!checklist.statusHistory) checklist.statusHistory = [];
+          checklist.statusHistory.push({
+            fromStatus: prev,
+            toStatus: "Completed",
+            changedBy: {
+              userId: userObjectId,
+              userName: session.userName || "System",
+              role: session.role || "HR",
+            },
+            changedAt: new Date(),
+            reason: "All checklist items verified and completed",
+          });
+        }
+
+        try {
+          const { User } = await import("@/models/User");
+          const userRec = await User.findById(checklist.userId).select("hrId").lean();
+          const payload = {
+            title: `${checklist.type} Checklist Completed`,
+            message: `${checklist.userName} completed all ${checklist.type} checklist items.`,
+            type: "hr" as const,
+            linkUrl: "/dashboard/hr?tab=checklists",
+          };
+          if (userRec?.hrId) {
+            await notify(tenantObjectId, userRec.hrId.toString(), payload);
+          }
+          await notifyAdmins(tenantObjectId, payload, ["Admin", "OPS"]);
+        } catch (err) {
+          console.warn("Failed to dispatch completion notification:", err);
+        }
+      } else if (!allDone && checklist.status === "Completed") {
+        checklist.status = "In Progress";
+        checklist.completedDate = undefined;
+      }
+    }
+
+    await checklist.save();
+    return NextResponse.json({ checklist });
+  } catch (error: unknown) {
+    console.error("PUT /api/hr/checklists error:", error);
+    return NextResponse.json({ error: "Failed to update checklist item" }, { status: 500 });
+  }
+}

@@ -1,0 +1,175 @@
+import mongoose, { Schema, Document, Model } from "mongoose";
+import "./Tenant";
+
+export interface IUser extends Document {
+  name: string;
+  username?: string;
+  email: string;
+  passwordHash: string;
+  role: string;
+  tenantId: mongoose.Types.ObjectId;
+  dob?: Date;
+  department?: string;
+  departments?: string[];
+  managerId?: mongoose.Types.ObjectId;
+  hrId?: mongoose.Types.ObjectId;
+  skills?: string[];
+  joinDate?: Date;
+  status?: "Active" | "Pending" | "On Leave" | "Suspended";
+  bio?: string;
+  phone?: string;
+  photoUrl?: string;
+  resumeUrl?: string;
+  resumeFileName?: string;
+  resumeFileSize?: number;
+  resumeUpdatedAt?: Date;
+  signatureUrl?: string;
+  shiftTime?: string;
+  shiftName?: string;
+  employmentType?: string;
+  salary?: number;
+  bankDetails?: {
+    bankName?: string;
+    accountNo?: string;
+    ifscCode?: string;
+    upiId?: string;
+  };
+  socialLinks?: {
+    linkedin?: string;
+    twitter?: string;
+    github?: string;
+    website?: string;
+    instagram?: string;
+    facebook?: string;
+  };
+  lastActiveAt?: Date;
+  forcePasswordReset?: boolean;
+  deviceTokens?: string[];
+  onboardedBy?: {
+    hrId?: mongoose.Types.ObjectId;
+    hrName?: string;
+    date?: Date;
+  };
+  documentsSubmitted?: boolean;
+  documentsConfirmedBy?: {
+    hrId?: mongoose.Types.ObjectId;
+    hrName?: string;
+    confirmedAt?: Date;
+  };
+  preferences?: {
+    showBirthdayOnDashboard?: boolean;
+    showAnniversaryOnDashboard?: boolean;
+    receiveBirthdayEmails?: boolean;
+  };
+  lastLoginIp?: string;
+  lastLoginDevice?: {
+    type?: "Desktop" | "Mobile" | "Tablet" | "Unknown";
+    os?: string;
+    browser?: string;
+    userAgent?: string;
+    lastActiveAt?: Date;
+  };
+  loginHistory?: Array<{
+    ip: string;
+    deviceType: string;
+    os: string;
+    browser: string;
+    loggedInAt: Date;
+  }>;
+  createdAt: Date;
+}
+
+const UserSchema: Schema = new Schema({
+  name: { type: String, required: true, trim: true },
+  username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
+  // NOTE: uniqueness is enforced per-tenant via compound index below (not globally unique)
+  email: { type: String, required: true, lowercase: true, trim: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, default: "Employee", trim: true },
+  tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
+  dob: { type: Date },
+  department: { type: String },
+  departments: [{ type: String }],
+  managerId: { type: Schema.Types.ObjectId, ref: "User" },
+  hrId: { type: Schema.Types.ObjectId, ref: "User" },
+  skills: [{ type: String }],
+  joinDate: { type: Date, default: Date.now },
+  status: { type: String, enum: ["Active", "Pending", "On Leave", "Suspended"], default: "Pending" },
+  bio: { type: String, default: "" },
+  phone: { type: String, default: "" },
+  photoUrl: { type: String, default: "" },
+  resumeUrl: { type: String, default: "" },
+  resumeFileName: { type: String, default: "" },
+  resumeFileSize: { type: Number, default: 0 },
+  resumeUpdatedAt: { type: Date },
+  signatureUrl: { type: String, default: "" },
+  shiftTime: { type: String, default: "09:00 AM - 05:00 PM" },
+  shiftName: { type: String, default: "Standard Day Shift" },
+  employmentType: { type: String, default: "Permanent", trim: true },
+  salary: { type: Number, default: 0 },
+  bankDetails: {
+    bankName: { type: String, default: "", trim: true },
+    accountNo: { type: String, default: "", trim: true },
+    ifscCode: { type: String, default: "", trim: true },
+    upiId: { type: String, default: "", trim: true },
+  },
+  socialLinks: {
+    linkedin: { type: String, default: "" },
+    twitter: { type: String, default: "" },
+    github: { type: String, default: "" },
+    website: { type: String, default: "" },
+    instagram: { type: String, default: "" },
+    facebook: { type: String, default: "" }
+  },
+  lastActiveAt: { type: Date, default: Date.now },
+  forcePasswordReset: { type: Boolean, default: false },
+  deviceTokens: [{ type: String }],
+  onboardedBy: {
+    hrId: { type: Schema.Types.ObjectId, ref: "User" },
+    hrName: { type: String, default: "" },
+    date: { type: Date }
+  },
+  documentsSubmitted: { type: Boolean, default: false },
+  documentsConfirmedBy: {
+    hrId: { type: Schema.Types.ObjectId, ref: "User" },
+    hrName: { type: String, default: "" },
+    confirmedAt: { type: Date }
+  },
+  preferences: {
+    showBirthdayOnDashboard: { type: Boolean, default: true },
+    showAnniversaryOnDashboard: { type: Boolean, default: true },
+    receiveBirthdayEmails: { type: Boolean, default: true }
+  },
+  lastLoginIp: { type: String, default: "" },
+  lastLoginDevice: {
+    type: { type: String, enum: ["Desktop", "Mobile", "Tablet", "Unknown"], default: "Unknown" },
+    os: { type: String, default: "" },
+    browser: { type: String, default: "" },
+    userAgent: { type: String, default: "" },
+    lastActiveAt: { type: Date }
+  },
+  loginHistory: [
+    {
+      ip: { type: String, default: "" },
+      deviceType: { type: String, default: "Unknown" },
+      os: { type: String, default: "" },
+      browser: { type: String, default: "" },
+      loggedInAt: { type: Date, default: Date.now }
+    }
+  ],
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Compound unique index — same email may exist in different tenants but not within the same one.
+// MIGRATION NOTE: drop the old global email_1 index if upgrading: db.users.dropIndex("email_1")
+UserSchema.index({ email: 1, tenantId: 1 }, { unique: true });
+// Compound index for tenant user listing & role filtering
+UserSchema.index({ tenantId: 1, role: 1 });
+
+// Force invalidate in-memory Mongoose model cache if schema updated
+if (mongoose.models.User && (!mongoose.models.User.schema.path("salary") || !mongoose.models.User.schema.path("bankDetails") || !mongoose.models.User.schema.path("resumeUrl") || !mongoose.models.User.schema.path("signatureUrl") || !mongoose.models.User.schema.path("hrId") || !mongoose.models.User.schema.path("documentsSubmitted") || !mongoose.models.User.schema.path("onboardedBy") || !mongoose.models.User.schema.path("dob") || !mongoose.models.User.schema.path("preferences") || !mongoose.models.User.schema.path("lastLoginIp"))) {
+  delete (mongoose.models as any).User;
+}
+
+export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+

@@ -1,0 +1,120 @@
+================================================================================
+                    NEXACE CRM - FEATURES COMPLETED TODAY
+================================================================================
+
+1. HR PARTNER ASSIGNMENT & ONBOARDING ROUTING
+--------------------------------------------------------------------------------
+- Dynamic HR Assignment: Employees can be assigned a dedicated HR Partner
+  (hrId / hrName) during registration or profile management.
+- Intelligent Fallback to Workspace Admin: If no dedicated HR Partner is
+  assigned, onboarding document review, checklist management, and approvals
+  automatically route to the Workspace Admin.
+- Onboarding Document Submission & Review Hub: When new hires submit compliance,
+  identity, or NDA documents, the assigned HR Partner (or Admin fallback)
+  receives instantaneous in-app alerts and notifications with quick review links.
+- Enterprise HR Data Isolation: When 'isolateHRData' is enabled, HR Partners only
+  access and manage onboarding checklists, documents, timesheets, and invoices
+  for their assigned employees, while Admins retain tenant-wide visibility.
+
+2. DUAL-PORTAL TIMESHEET & INVOICE REVIEW & APPROVAL WORKFLOW
+--------------------------------------------------------------------------------
+- Dual Portal Access: Review and approval actions are accessible across:
+  a) HR Portal (/dashboard/hr) under the dedicated "Timesheet & Invoice Approvals" tab.
+  b) Admin Invoices / Finance Portal (/dashboard/settings?tab=invoices & /dashboard/finance).
+- Multi-Role Support: Both HR Partners (role="HR") and Workspace Admins have the
+  authority to review, approve, or reject employee invoices and timesheets.
+
+3. MANDATORY APPROVAL GATE BEFORE PAYMENT PROCESSING
+--------------------------------------------------------------------------------
+- Strict Backend Enforcement: /api/it/invoices/[id] and /api/finance/invoices/[id]
+  strictly reject payment requests (status="Paid") with HTTP 400 Bad Request
+  unless the invoice status is explicitly "Approved".
+- UI Guard Rails: "Process Payment" action is completely locked and hidden for
+  pending or unapproved invoices. It becomes available only once an HR Partner or
+  Admin formally approves the submission.
+- Separation of Approval & Payout: Review/Approval and Disbursement/Payment are
+  cleanly separated into two distinct stages in the workflow.
+
+4. AUTOMATIC LINKED TIMESHEET SYNCHRONIZATION
+--------------------------------------------------------------------------------
+- One-Click Auto-Approval: Approving an IT contractor or employee invoice
+  automatically transitions all associated pending timesheet records (TimeEntry)
+  for that billing period to "Approved", eliminating double-entry overhead.
+- Audit Stamping: Records approver identity (approvedBy), timestamp (approvedAt),
+  and organizational role (approverRole: "HR" | "Admin" | "OPS").
+
+5. FORMAL REJECTION SYSTEM WITH ACTIONABLE REASONS
+--------------------------------------------------------------------------------
+- Mandatory Rejection Reason: Rejection requires a mandatory explanation modal
+  detailing what needs correction.
+- Employee Self-Service Feedback: Rejected invoices prominently display the
+  rejection reason banner and reviewer details on employee self-service cards and
+  list views, guiding the user to revise their timesheet and resubmit.
+
+6. UI / UX & DESIGN SYSTEM ENHANCEMENTS
+--------------------------------------------------------------------------------
+- FontAwesome 6 Icon Compliance: Standardized across the approval and invoice
+  workflows using FA6 classes (fa-check-double, fa-ban, fa-file-invoice-dollar).
+- Mobile-First Responsiveness: All dialogs, status badges, action toolbars, and
+  feedback banners adapt seamlessly across mobile, tablet, and desktop screens.
+
+7. TEAM AVAILABILITY RBAC PERMISSIONS IN SETTINGS
+--------------------------------------------------------------------------------
+- Granular Capability Controls: Integrated 3 new permissions under
+  "Calendar & Time > Availability & Scheduling" in Settings > Permissions:
+    * View Team Availability Roster (viewTeamAvailability)
+    * Manage Team Work Availability (manageTeamAvailability)
+    * Record Own Work Availability (logOwnAvailability)
+- Role Presets & Archetypes: Configured default permissions for OPS, Manager,
+  HR, and Employee roles, as well as role archetype templates.
+- Backend Enforcement: /api/calendar/availability (GET, POST, DELETE)
+  dynamically checks tenant RolePermission entries to govern roster access and
+  multi-user schedule management.
+
+8. REASSIGN & MULTI-HR OPTION (RBAC & SETTINGS GOVERNANCE)
+--------------------------------------------------------------------------------
+- Granular RBAC Feature Permissions:
+    * Reassign Reporting Managers (reassignReportingLine) under Team > User Management & Hiring
+    * Assign & Reassign HR Partners (reassignHRPartner) under HR & Leave > HR Operations
+    * Manage Multi-HR Data Isolation (manageHRIsolation) under HR & Leave > HR Operations
+- Role Defaults & Archetypes:
+    * Preset templates updated with "HR Operations & People Lead" archetype
+    * Default permissions configured for OPS (all true), Manager (reassignReportingLine true),
+      HR (reassignReportingLine, reassignHRPartner, manageHRIsolation true), and Employee (false)
+- Multi-HR Governance in Settings:
+    * Added interactive Multi-HR Option & Partner Isolation card in Settings > Organization
+    * Added inline Multi-HR Option toggle badge in Settings > User Management
+    * Integrated with PUT/GET /api/settings/hr-isolation and dynamic RBAC checks
+- Reassignment Capabilities in Team Directory & Org Chart:
+    * /api/team/reassign supports dynamic RBAC for reassignReportingLine and reassignHRPartner
+    * OrgChartNode enables drag-and-drop hierarchy reassignment for authorized roles
+    * Quick Reassign button in Team Directory table rows and Edit Member drawer
+
+9. TOGGLE & ACTION NOTIFICATION TOAST Z-INDEX ELEVATION (z-[99999])
+--------------------------------------------------------------------------------
+- Elevated all toggle, status update, and action toast notification overlays across
+  the entire application to top-tier z-index `z-[99999]`.
+- Prevents toasts, confirmation banners, and toggle feedbacks (such as Multi-HR isolation,
+  preset template applied, team reassignment, shift changes, and delete confirmations)
+  from becoming obscured behind modals, popups, drawers, or backdrop scrims (`z-50`, `z-[60]`, `z-[120]`).
+- Standardized across:
+    * Settings & Platform Administration (src/app/dashboard/settings/page.tsx)
+    * User Management Tab (src/components/settings/UserManagementTab.tsx)
+    * HR & People Portal (src/app/dashboard/hr/page.tsx & HRTasksTab.tsx)
+    * Team & Directory (src/app/dashboard/team/page.tsx)
+    * Calendar & Sprints (src/app/dashboard/calendar/page.tsx)
+    * Goals & OKRs (src/app/dashboard/goals/page.tsx)
+    * Referrals Portal (src/app/dashboard/referrals/page.tsx)
+    * Clients & OPS Portal (src/app/dashboard/clients/page.tsx)
+    * IT Asset Management (src/app/dashboard/it/page.tsx)
+    * Finance & Invoicing Portal (src/app/dashboard/finance/page.tsx)
+    * Business Development (src/app/dashboard/bd/page.tsx)
+    * Sales Workdesk (src/app/dashboard/sales/page.tsx)
+    * Employee Workspace (src/components/dashboard/EmployeeDashboard.tsx)
+    * Contracts & Onboarding (src/components/operations/ContractsOnboardingTab.tsx)
+    * Projects & Drive Workspace (src/components/operations/ProjectsDriveWorkspace.tsx)
+    * Workspace Reports (src/components/operations/ReportsDashboard.tsx)
+    * Real-time Toast Notifications (src/components/layout/NotificationBell.tsx)
+================================================================================
+
+

@@ -1,0 +1,277 @@
+import { NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/db";
+import { FinanceInvoice } from "@/models/FinanceInvoice";
+import { User } from "@/models/User";
+import { Tenant } from "@/models/Tenant";
+import { ActivityLog } from "@/models/ActivityLog";
+import { requireTenantSession, isAuthError } from "@/lib/auth-guard";
+
+export async function GET() {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, userObjectId, session } = authResult;
+
+    await connectToDatabase();
+
+    const { getHRAccessScope } = await import("@/lib/hrIsolation");
+    const hrScope = await getHRAccessScope(session, tenantObjectId, userObjectId);
+
+    const invoiceQuery: any = { tenantId: tenantObjectId };
+    if (hrScope.isIsolated && hrScope.allowedUserIds) {
+      invoiceQuery.createdBy = { $in: hrScope.allowedUserIds };
+    }
+
+    const invoices = await FinanceInvoice.find(invoiceQuery)
+      .populate("createdBy", "name email bankDetails upiId")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Fetch ITInvoices (Employee Invoices) as well
+    const { ITInvoice } = await import("@/models/ITInvoice");
+    const itInvoices = await ITInvoice.find(invoiceQuery)
+      .populate("createdBy", "name email bankDetails upiId")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Load tenant users to accurately match the invoice payee
+    const tenantUsers = await User.find({ tenantId: tenantObjectId })
+      .select("name email bankDetails upiId")
+      .lean();
+
+    // Helper to find the actual payee's bank/UPI details
+    const getInvoicePayeeInfo = (inv: any) => {
+      // 1. Explicitly stored on the invoice itself
+      if (inv.bankDetails?.upiId?.trim()) {
+        return {
+          userUpiId: inv.bankDetails.upiId.trim(),
+          bankDetails: inv.bankDetails,
+        };
+      }
+
+      // 2. If already Paid, return the confirmed toUpiId
+      if (inv.status === "Paid" && inv.paymentDetails?.toUpiId?.trim()) {
+        return {
+          userUpiId: inv.paymentDetails.toUpiId.trim(),
+          bankDetails: inv.bankDetails,
+        };
+      }
+
+      // 3. Match payee by businessEmail or client name against employee accounts
+      const payeeEmail = (inv.businessEmail || "").toLowerCase().trim();
+      const payeeName = (inv.businessName || inv.client || "").toLowerCase().trim();
+
+      const matchedUser = tenantUsers.find((u: any) => {
+        const uEmail = (u.email || "").toLowerCase().trim();
+        const uName = (u.name || "").toLowerCase().trim();
+        if (payeeEmail && uEmail === payeeEmail) return true;
+        if (
+          payeeName &&
+          payeeName !== "ace consultancys" &&
+          payeeName !== "nex ace" &&
+          payeeName !== "unknown employee" &&
+          uName === payeeName
+        ) {
+          return true;
+        }
+        return false;
+      });
+
+      if (matchedUser) {
+        const upi = (matchedUser.bankDetails?.upiId || (matchedUser as any).upiId || "").trim();
+        return {
+          userUpiId: upi,
+          bankDetails: inv.bankDetails || matchedUser.bankDetails || undefined,
+        };
+      }
+
+      // 4. No payee user found — DO NOT fall back to createdBy (who is just the CRM admin/recorder)
+      return {
+        userUpiId: "",
+        bankDetails: inv.bankDetails || undefined,
+      };
+    };
+
+    const tenantDoc = await Tenant.findById(tenantObjectId).select("signatureUrl").lean();
+    const orgSignatureUrl = (tenantDoc as any)?.signatureUrl?.trim() || "";
+
+    const mappedFinanceInvoices = invoices.map((inv: any) => {
+      const payeeInfo = getInvoicePayeeInfo(inv);
+      return {
+        ...inv,
+        approvedBy: inv.approvedBy || (inv.status === "Paid" ? (inv.paymentDetails?.paidBy || "Admin") : ""),
+        approvedAt: inv.approvedAt || (inv.status === "Paid" ? (inv.paymentDetails?.paidAt || inv.updatedAt) : ""),
+        signatureUrl: inv.signatureUrl || (inv.status === "Paid" ? orgSignatureUrl : ""),
+        userUpiId: payeeInfo.userUpiId,
+        bankDetails: payeeInfo.bankDetails,
+        approvalStage: inv.approvalStage || (inv.status === "Approved" ? "PENDING_PAYMENT" : inv.status === "Paid" ? "PAID" : inv.status === "Rejected" ? "REJECTED" : "PENDING_REVIEW"),
+        timeline: inv.timeline || [],
+        rejectionReason: inv.rejectionReason || "",
+        rejectionRemark: inv.rejectionRemark || "",
+        objections: inv.objections || [],
+        rejectionHistory: inv.rejectionHistory || [],
+        revisionCount: inv.revisionCount || 0,
+        paymentDetails: inv.paymentDetails || null,
+      };
+    });
+
+    const mappedEmployeeInvoices = itInvoices.map((inv: any) => {
+      const payeeInfo = getInvoicePayeeInfo(inv);
+      return {
+        _id: inv._id,
+        invoiceNo: inv.invoiceNo,
+        client: inv.businessName || "Unknown Employee",
+        amount: inv.total || 0,
+        currency: inv.currency || "USD",
+        status: inv.status || "Draft",
+        approvalStage: inv.approvalStage || (inv.status === "Approved" ? "PENDING_ADMIN" : inv.status === "Paid" ? "PAID" : inv.status === "Rejected" ? "REJECTED" : "PENDING_HR"),
+        timeline: inv.timeline || [],
+        rejectionReason: inv.rejectionReason || "",
+        rejectionRemark: inv.rejectionRemark || "",
+        objections: inv.objections || [],
+        rejectionHistory: inv.rejectionHistory || [],
+        revisionCount: inv.revisionCount || 0,
+        hrReview: inv.hrReview || null,
+        issuedDate: inv.invoiceDate || new Date().toISOString().split("T")[0],
+        dueDate: inv.dueDate || "",
+        category: "Employee Invoice",
+        venture: inv.billedToName || "Ace Consultancys",
+        notes: inv.notes || "",
+        createdAt: inv.createdAt,
+        userUpiId: payeeInfo.userUpiId,
+        bankDetails: payeeInfo.bankDetails,
+        paymentDetails: inv.paymentDetails,
+        items: inv.items || [],
+        lineItems: inv.items || [],
+        subtotal: inv.subtotal || inv.total || 0,
+        taxRate: inv.taxRate || 0,
+        taxAmount: inv.taxAmount || 0,
+        total: inv.total || 0,
+        billedToName: inv.billedToName || "NexAce Technologies",
+        billedToAddress: inv.billedToAddress,
+        billedToEmail: inv.billedToEmail,
+        businessName: inv.businessName || "Unknown Employee",
+        businessAddress: inv.businessAddress,
+        businessEmail: inv.businessEmail,
+        customerNo: inv.customerNo,
+        shiftAttendance: inv.shiftAttendance || null,
+        timesheetEntries: inv.timesheetEntries || null,
+        signatureUrl: inv.signatureUrl || (inv.status === "Paid" ? orgSignatureUrl : ""),
+        approvedBy: inv.approvedBy || (inv.status === "Paid" ? (inv.paymentDetails?.paidBy || "Admin") : ""),
+        approvedAt: inv.approvedAt || (inv.status === "Paid" ? (inv.paymentDetails?.paidAt || inv.updatedAt) : ""),
+      };
+    });
+
+    // Merge both arrays
+    const allInvoices = [...mappedFinanceInvoices, ...mappedEmployeeInvoices].sort((a: any, b: any) => {
+      const dateA = new Date(a.createdAt || a.issuedDate).getTime();
+      const dateB = new Date(b.createdAt || b.issuedDate).getTime();
+      return dateB - dateA;
+    });
+
+    return NextResponse.json({ invoices: allInvoices });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("GET /api/finance/invoices error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const authResult = await requireTenantSession();
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, userObjectId, session } = authResult;
+
+    const body = await request.json();
+    await connectToDatabase();
+
+    const { invoiceNo, client, amount, currency, status, issuedDate, dueDate, category, venture, notes, lineItems } = body;
+
+    if (!client?.trim() || !invoiceNo?.trim()) {
+      return NextResponse.json({ error: "Client and invoice number are required" }, { status: 400 });
+    }
+
+    const isHrOrAdminApproved = status === "Approved";
+    const initialApprovalStage = body.approvalStage || (isHrOrAdminApproved ? "PENDING_PAYMENT" : status === "Pending" ? "PENDING_REVIEW" : "DRAFT");
+
+    const defaultTimeline = [
+      {
+        stage: isHrOrAdminApproved ? "APPROVED" : "SUBMITTED",
+        status: status || "Draft",
+        actorName: session.userName || "User",
+        actorRole: session.role || "HR",
+        actorId: userObjectId,
+        note: isHrOrAdminApproved
+          ? `Invoice generated and verified by ${session.role || "HR"} on behalf of recipient. Ready for finance settlement.`
+          : "Invoice generated and submitted for HR attendance and timesheet verification.",
+        timestamp: new Date(),
+      },
+    ];
+
+    const invoice = await FinanceInvoice.create({
+      tenantId: tenantObjectId,
+      createdBy: userObjectId,
+      targetUserId: body.targetUserId || null,
+      invoiceNo: invoiceNo.trim(),
+      client: client.trim(),
+      amount: Number(amount) || 0,
+      currency: currency || "INR",
+      status: status || "Draft",
+      approvalStage: initialApprovalStage,
+      issuedDate: issuedDate || new Date().toISOString().split("T")[0],
+      dueDate: dueDate || "",
+      category: category || "Services",
+      venture: venture || "Ace Consultancys",
+      notes: notes || "",
+      lineItems: lineItems || [],
+      signatureUrl: body.signatureUrl || "",
+      shiftAttendance: body.shiftAttendance || null,
+      timesheetEntries: body.timesheetEntries || null,
+      billedToName: body.billedToName || body.client || "",
+      businessName: body.businessName || "",
+      businessEmail: body.businessEmail || "",
+      customerNo: body.customerNo || "",
+      preferredPaymentMethod: body.preferredPaymentMethod || "Bank Transfer",
+      bankDetails: body.bankDetails || undefined,
+      approvedBy: isHrOrAdminApproved ? (body.approvedBy || session.userName || "HR") : "",
+      approvedAt: isHrOrAdminApproved ? (body.approvedAt || new Date().toISOString()) : "",
+      approverRole: isHrOrAdminApproved ? (body.approverRole || session.role || "HR") : "",
+      timeline: body.timeline && Array.isArray(body.timeline) && body.timeline.length > 0 ? body.timeline : defaultTimeline,
+    });
+
+    // Notify employee payee if HR generated the invoice on their behalf
+    if (body.targetUserId && String(body.targetUserId) !== String(userObjectId)) {
+      try {
+        const { Notification } = await import("@/models/Notification");
+        const currSymbol = (currency === "INR" || !currency) ? "₹" : `${currency} `;
+        await Notification.create({
+          tenantId: tenantObjectId,
+          recipientId: body.targetUserId,
+          title: `✨ Monthly Invoice Issued: ${invoice.invoiceNo}`,
+          message: `${session.userName || "HR"} has generated and verified your invoice for ${currSymbol}${Number(invoice.amount || 0).toLocaleString("en-IN")}. It is now queued for payout disbursement.`,
+          type: "finance",
+          linkUrl: `/dashboard/settings?tab=invoice&invoiceNo=${encodeURIComponent(invoice.invoiceNo)}`,
+          read: false,
+        });
+      } catch (notifErr) {
+        console.error("Could not send creation notification to employee:", notifErr);
+      }
+    }
+
+    await ActivityLog.create({
+      tenantId: tenantObjectId,
+      userId: userObjectId,
+      userName: session.userName || "Admin",
+      action: `Created invoice: ${invoice.invoiceNo}`,
+      targetName: "FinanceInvoice",
+      details: `Client: ${invoice.client} | Amount: ₹${invoice.amount} | Status: ${invoice.status}`,
+    });
+
+    return NextResponse.json({ invoice }, { status: 201 });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("POST /api/finance/invoices error:", error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

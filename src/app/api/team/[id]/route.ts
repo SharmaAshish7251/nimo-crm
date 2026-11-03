@@ -1,0 +1,556 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { connectToDatabase } from "@/lib/db";
+import { User } from "@/models/User";
+import { EmailVerification } from "@/models/EmailVerification";
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import { sendEmail } from "@/lib/mail";
+import { validatePasswordPattern, validateDob } from "@/lib/utils";
+
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+/**
+ * GET: Fetch single employee details.
+ */
+export async function GET(request: Request, { params }: RouteParams) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    await connectToDatabase();
+
+    const user = await User.findById(id)
+      .select("-passwordHash")
+      .populate("managerId", "name email role photoUrl")
+      .populate("hrId", "name email role photoUrl")
+      .populate("onboardedBy.hrId", "name email role photoUrl")
+      .populate("documentsConfirmedBy.hrId", "name email role photoUrl")
+      .lean();
+
+    if (!user || (user.tenantId as any).toString() !== session.tenantId) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    // Strip private resume fields if the caller does not have HR-level access
+    // and is not viewing their own profile
+    const { isSubAdminRole } = await import("@/lib/roles");
+    const callerCanViewResumes =
+      session.role?.trim().toLowerCase() === "admin" ||
+      isSubAdminRole(session.role) ||
+      session.role?.trim().toLowerCase() === "hr";
+    const isSelf = id === session.userId;
+
+    let safeUser: any = user;
+    if (!isSelf && !callerCanViewResumes) {
+      const { resumeUrl, resumeFileName, resumeFileSize, resumeUpdatedAt, ...rest } = user as any;
+      safeUser = rest;
+    }
+
+    return NextResponse.json({ user: safeUser });
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API GET Single Team error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * PUT: Update employee details.
+ * - Self can update: bio, phone, photoUrl, skills.
+ * - Admin can update: all fields.
+ */
+export async function PUT(request: Request, { params }: RouteParams) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+
+    await connectToDatabase();
+
+    const user = await User.findById(id);
+    if (!user || user.tenantId.toString() !== session.tenantId) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    const isSelf = user._id.toString() === session.userId;
+    const { getUserDataScope } = await import("@/lib/dataScope");
+    const { isSubAdminRole } = await import("@/lib/roles");
+    const dataScope = await getUserDataScope(session);
+    const isAdminSession = session.role === "Admin" || isSubAdminRole(session.role);
+    const canManageUsers = isAdminSession || dataScope.canViewFeature("manageUsers");
+    const canChangeRoles = isAdminSession || dataScope.canViewFeature("changeUserRoles");
+    // Admin and OPS (SubAdmin) can always change roles; others need the explicit feature flag
+    const isHR = session.role === "HR";
+    const canReassignLine = isAdminSession || dataScope.canViewFeature("reassignReportingLine");
+    const canReassignHR = isAdminSession || dataScope.canViewFeature("reassignHRPartner");
+    const canEditOthers = canManageUsers || canChangeRoles || isHR || canReassignLine || canReassignHR;
+    const userObjectId = new mongoose.Types.ObjectId(session.userId);
+
+    if (!isSelf && !canEditOthers) {
+      return NextResponse.json({ error: "Forbidden: Access denied" }, { status: 403 });
+    }
+
+    // Determine allowed updates
+    if (body.email && body.email.toLowerCase() !== user.email) {
+      // 1. Verify code against CURRENT email only when a user is updating their OWN email
+      if (isSelf) {
+        if (!body.code) {
+          return NextResponse.json({ error: "Verification code is required to update email address." }, { status: 400 });
+        }
+        const verification = await EmailVerification.findOne({ email: user.email });
+        const isExpired = verification && (Date.now() - new Date(verification.createdAt).getTime() > 10 * 60 * 1000);
+        if (!verification || verification.code !== body.code || isExpired) {
+          if (verification && isExpired) {
+            await EmailVerification.deleteOne({ _id: verification._id });
+          }
+          return NextResponse.json({ error: "Incorrect or expired verification code. Please request a new code." }, { status: 400 });
+        }
+        await EmailVerification.deleteOne({ _id: verification._id });
+      }
+
+      // 2. Duplicate checking on new email within this tenant
+      const existingUser = await User.findOne({
+        _id: { $ne: user._id },
+        tenantId: user.tenantId,
+        email: body.email.toLowerCase(),
+      });
+      if (existingUser) {
+        return NextResponse.json({ error: "Email address is already in use by another user in this workspace." }, { status: 400 });
+      }
+
+      user.email = body.email.toLowerCase();
+    }
+    if (body.name && body.name.trim() !== user.name) {
+      const existingName = await User.findOne({
+        _id: { $ne: user._id },
+        tenantId: user.tenantId,
+        name: { $regex: `^${body.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" }
+      });
+      if (existingName) {
+        return NextResponse.json({ error: `An employee named '${body.name.trim()}' already exists in this workspace.` }, { status: 400 });
+      }
+      user.name = body.name.trim();
+    }
+
+    // Both Self and Admin can change password (Self requires currentPassword and email verification code)
+    if (body.newPassword) {
+      const pwdValidation = validatePasswordPattern(body.newPassword);
+      if (!pwdValidation.isValid) {
+        return NextResponse.json({ error: pwdValidation.error }, { status: 400 });
+      }
+
+      // If user has forcePasswordReset (first-time setup), allow direct new password update.
+      // Regular password changes (when not first-run) still enforce currentPassword & email verification.
+      if (isSelf && !user.forcePasswordReset) {
+        if (!body.currentPassword) {
+          return NextResponse.json({ error: "Current password is required to change password" }, { status: 400 });
+        }
+        const isMatch = await bcrypt.compare(body.currentPassword, user.passwordHash);
+        if (!isMatch) {
+          return NextResponse.json({ error: "Incorrect current password" }, { status: 400 });
+        }
+        
+        // Enforce email verification code for password change
+        if (!body.code) {
+          return NextResponse.json({ error: "An email verification code is required to change your password." }, { status: 400 });
+        }
+        const verification = await EmailVerification.findOne({ email: user.email });
+        if (!verification || verification.code !== body.code) {
+          return NextResponse.json({ error: "Incorrect or expired email verification code. Please request a new code." }, { status: 400 });
+        }
+        await EmailVerification.deleteOne({ _id: verification._id });
+      }
+      user.passwordHash = await bcrypt.hash(body.newPassword, 10);
+      // Setting a password (by admin or self) satisfies the first-run reset requirement
+      user.forcePasswordReset = false;
+    }
+
+    let wasApprovedFromPending = false;
+
+    // Admin / Permitted user updates
+    if (canEditOthers) {
+      if (body.role && typeof body.role === "string") {
+        // Only block role change if user is not an admin/OPS AND doesn't have the explicit changeUserRoles feature
+        if (!canChangeRoles) {
+          return NextResponse.json({ error: "Forbidden: You do not have permission to change user roles" }, { status: 403 });
+        }
+        const newRole = body.role.trim();
+        user.role = newRole;
+        // If promoted to a top-level role (Admin/OPS), clear managerId so they
+        // don't appear as both a root node AND a child in the org chart (duplicate profile bug)
+        const { isSubAdminRole: isSubAdmin } = await import("@/lib/roles");
+        if (newRole === "Admin" || isSubAdmin(newRole)) {
+          user.managerId = undefined;
+        }
+      }
+      if (body.departments && Array.isArray(body.departments)) {
+        user.departments = body.departments;
+        user.department = body.departments[0] || "General";
+      } else if (body.department) {
+        user.department = body.department;
+        user.departments = [body.department];
+      }
+      if (body.managerId !== undefined) {
+        if (!isAdminSession && !canManageUsers && !canReassignLine) {
+          return NextResponse.json({ error: "Forbidden: You do not have permission to reassign reporting managers" }, { status: 403 });
+        }
+        user.managerId = body.managerId ? new mongoose.Types.ObjectId(body.managerId) : undefined;
+      }
+      if (body.hrId !== undefined) {
+        if (!isAdminSession && !canManageUsers && !canReassignHR) {
+          return NextResponse.json({ error: "Forbidden: You do not have permission to reassign HR partners" }, { status: 403 });
+        }
+        user.hrId = body.hrId ? new mongoose.Types.ObjectId(body.hrId) : undefined;
+      }
+
+      if (body.status && ["Active", "Pending", "On Leave", "Suspended"].includes(body.status)) {
+        if (user.status === "Pending" && body.status === "Active") {
+          wasApprovedFromPending = true;
+          user.onboardedBy = {
+            hrId: userObjectId,
+            hrName: session.userName,
+            date: new Date(),
+          };
+        }
+        user.status = body.status;
+      }
+      if (body.onboardedBy) {
+        user.onboardedBy = {
+          hrId: userObjectId,
+          hrName: session.userName,
+          date: new Date(),
+        };
+      }
+      if (body.documentsSubmitted !== undefined) {
+        user.documentsSubmitted = Boolean(body.documentsSubmitted);
+        user.documentsConfirmedBy = {
+          hrId: userObjectId,
+          hrName: session.userName,
+          confirmedAt: new Date(),
+        };
+      }
+      if (body.shiftTime !== undefined) user.shiftTime = body.shiftTime;
+      if (body.shiftName !== undefined) user.shiftName = body.shiftName;
+      if (body.employmentType !== undefined) user.employmentType = body.employmentType;
+      if (body.salary !== undefined) {
+        const salNum = Number(body.salary) || 0;
+        user.salary = salNum;
+        user.set("salary", salNum);
+        user.markModified("salary");
+      }
+    }
+
+    // Personal profile meta updates (Allowed for Self and Permitted editors)
+    if (isSelf || canEditOthers) {
+      if (body.dob !== undefined) {
+        const dobValidation = validateDob(body.dob);
+        if (!dobValidation.isValid) {
+          return NextResponse.json({ error: dobValidation.error }, { status: 400 });
+        }
+        user.dob = dobValidation.date;
+      }
+      if (body.bio !== undefined) user.bio = body.bio;
+      if (body.phone !== undefined) user.phone = body.phone;
+      if (body.photoUrl !== undefined) user.photoUrl = body.photoUrl;
+      if (body.signatureUrl !== undefined) user.signatureUrl = body.signatureUrl;
+      if (body.resumeUrl !== undefined) user.resumeUrl = body.resumeUrl;
+      if (body.resumeFileName !== undefined) user.resumeFileName = body.resumeFileName;
+      if (body.resumeFileSize !== undefined) user.resumeFileSize = body.resumeFileSize;
+      if (body.resumeUpdatedAt !== undefined) user.resumeUpdatedAt = body.resumeUpdatedAt;
+      if (body.skills !== undefined) user.skills = body.skills;
+      if (body.socialLinks !== undefined) {
+        user.socialLinks = {
+          linkedin: body.socialLinks.linkedin || "",
+          twitter: body.socialLinks.twitter || "",
+          github: body.socialLinks.github || "",
+          website: body.socialLinks.website || "",
+          instagram: body.socialLinks.instagram || "",
+          facebook: body.socialLinks.facebook || "",
+        };
+      }
+      if (body.bankDetails !== undefined) {
+        user.bankDetails = {
+          bankName: (body.bankDetails.bankName || "").trim(),
+          accountNo: (body.bankDetails.accountNo || "").trim(),
+          ifscCode: (body.bankDetails.ifscCode || "").trim().toUpperCase(),
+          upiId: (body.bankDetails.upiId || "").trim(),
+        };
+      }
+      if (body.preferences !== undefined) {
+        user.preferences = {
+          showBirthdayOnDashboard: body.preferences.showBirthdayOnDashboard !== undefined ? Boolean(body.preferences.showBirthdayOnDashboard) : true,
+          showAnniversaryOnDashboard: body.preferences.showAnniversaryOnDashboard !== undefined ? Boolean(body.preferences.showAnniversaryOnDashboard) : true,
+          receiveBirthdayEmails: body.preferences.receiveBirthdayEmails !== undefined ? Boolean(body.preferences.receiveBirthdayEmails) : true,
+        };
+      }
+    }
+
+    await user.save();
+
+    // Explicit direct MongoDB update to guarantee salary, employmentType & bankDetails are saved even if Mongoose model schema was cached
+    const directUpdate: any = {};
+    if (canEditOthers && body.salary !== undefined) directUpdate.salary = Number(body.salary) || 0;
+    if (canEditOthers && body.employmentType !== undefined) directUpdate.employmentType = body.employmentType;
+    if (body.resumeUrl !== undefined) directUpdate.resumeUrl = body.resumeUrl;
+    if (body.resumeFileName !== undefined) directUpdate.resumeFileName = body.resumeFileName;
+    if (body.resumeFileSize !== undefined) directUpdate.resumeFileSize = body.resumeFileSize;
+    if (body.resumeUpdatedAt !== undefined) directUpdate.resumeUpdatedAt = body.resumeUpdatedAt;
+    if (body.dob !== undefined && user.dob) directUpdate.dob = user.dob;
+    if (body.bankDetails !== undefined) {
+      directUpdate.bankDetails = {
+        bankName: (body.bankDetails.bankName || "").trim(),
+        accountNo: (body.bankDetails.accountNo || "").trim(),
+        ifscCode: (body.bankDetails.ifscCode || "").trim().toUpperCase(),
+        upiId: (body.bankDetails.upiId || "").trim(),
+      };
+    }
+    if (body.preferences !== undefined) {
+      directUpdate.preferences = user.preferences;
+    }
+    if (Object.keys(directUpdate).length > 0) {
+      await User.updateOne({ _id: user._id }, { $set: directUpdate });
+    }
+
+    // Post-Approval Workflow: Initialize Onboarding Checklist, notify HR & Employee
+    if (wasApprovedFromPending) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+      try {
+        let managerName = "";
+        if (user.managerId) {
+          const mgr = await User.findById(user.managerId).select("name email").lean();
+          if (mgr) managerName = mgr.name;
+        }
+        let hrName = "";
+        if (user.hrId) {
+          const hrDoc = await User.findById(user.hrId).select("name email").lean();
+          if (hrDoc) hrName = hrDoc.name;
+        }
+
+        // 1. Auto-initialize Onboarding Checklist if not already created
+        const { HROnboarding } = await import("@/models/HROnboarding");
+        let checklist = await HROnboarding.findOne({
+          tenantId: user.tenantId,
+          userId: user._id,
+          type: "Onboarding",
+        });
+
+        if (!checklist) {
+          const empType = user.employmentType || "Permanent";
+          let defaultItems = [
+            { id: "1", title: "Submit Identity & Government ID Proof (Aadhaar / Passport / SSN)", category: "Document", completed: false },
+            { id: "2", title: "Submit Address & Residence Proof", category: "Document", completed: false },
+            { id: "3", title: "Submit Bank Details / Cancelled Cheque", category: "Document", completed: false },
+            { id: "4", title: "Sign Non-Disclosure Agreement (NDA)", category: "NDA", completed: false },
+            { id: "5", title: "Job Description, KRAs & Company Code of Conduct Sign-off", category: "Compliance", completed: false },
+          ];
+
+          if (empType === "Contractor" || empType === "Freelancer") {
+            defaultItems = [
+              { id: "1", title: "Sign Independent Contractor / Freelance MSA Agreement", category: "Contract", completed: false },
+              { id: "2", title: "Sign Contractor Non-Disclosure Agreement (NDA)", category: "NDA", completed: false },
+              { id: "3", title: "Tax Identification Setup (W-9 / GST / PAN)", category: "Document", completed: false },
+              { id: "4", title: "Invoicing & Banking Details Verification", category: "Document", completed: false },
+              { id: "5", title: "Role-Based Tool & Repository Access Configuration", category: "Access", completed: false },
+            ];
+          } else if (empType === "Intern") {
+            defaultItems = [
+              { id: "1", title: "Educational Institution NOC & Student Identity Proof", category: "Document", completed: false },
+              { id: "2", title: "Sign Internship Agreement & Confidentiality Terms", category: "NDA", completed: false },
+              { id: "3", title: "Bank Details for Stipend Disbursement", category: "Document", completed: false },
+              { id: "4", title: "Mentor Assignment & Learning Goals Sign-off", category: "KRA Sign-off", completed: false },
+            ];
+          }
+
+          checklist = await HROnboarding.create({
+            tenantId: user.tenantId,
+            userId: user._id,
+            userName: user.name,
+            userEmail: user.email,
+            employmentType: empType,
+            type: "Onboarding",
+            status: "In Progress",
+            items: defaultItems,
+            onboardedBy: {
+              hrId: userObjectId,
+              hrName: session.userName,
+              date: new Date(),
+            },
+          });
+        }
+
+        // 2. Notify Assigned HR Partner (In-App)
+        const { notify } = await import("@/lib/notify");
+        if (user.hrId) {
+          await notify(user.tenantId, user.hrId.toString(), {
+            title: "✨ New Employee Assigned for Onboarding",
+            message: `${user.name} has been approved and assigned to you as their HR Partner. Please review their onboarding & document collection.`,
+            type: "hr",
+            linkUrl: `/dashboard/hr?tab=checklists`,
+          });
+        }
+
+        // 3. Notify Employee (In-App)
+        await notify(user.tenantId, user._id.toString(), {
+          title: "🎉 Welcome Aboard! Please Submit Onboarding Documents",
+          message: `Your account is active! Your HR Partner (${hrName || "HR Team"}) has requested your onboarding documents.`,
+          type: "hr",
+          linkUrl: `/dashboard/hr?tab=checklists`,
+        });
+
+        // 4. Send Welcome & Approval Confirmation Email with Onboarding CTA
+        if (user.email) {
+          const hrText = hrName ? ` Assigned HR: ${hrName}.` : "";
+          const hrHtml = hrName ? `<p style="margin: 4px 0; color: #1e293b;"><strong>Assigned HR:</strong> ${hrName}</p>` : "";
+
+          await sendEmail({
+            to: user.email,
+            subject: "🎉 Account Approved! Welcome to your Workspace",
+            text: `Hello ${user.name}, your employee account has been approved by Operations! Assigned Department: ${user.department || "General"}. Reporting Manager: ${managerName || "Direct / Self-Managed"}.${hrText} Next Step: Please log in at ${appUrl}/login and submit your onboarding documents.`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <h2 style="color: #10b981; margin-top: 0;">Account Approved &amp; Activated!</h2>
+                <p style="color: #475569; font-size: 14px; line-height: 1.5;">
+                  Hello <strong>${user.name}</strong> (@${user.username || "employee"}),
+                </p>
+                <p style="color: #475569; font-size: 14px; line-height: 1.5;">
+                  Great news! Your workspace administrator or Operations Manager has approved your registration.
+                </p>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; line-height: 1.6;">
+                  <p style="margin: 4px 0; color: #1e293b;"><strong>Department:</strong> ${user.department || "General"}</p>
+                  <p style="margin: 4px 0; color: #1e293b;"><strong>Role:</strong> ${user.role || "Employee"}</p>
+                  <p style="margin: 4px 0; color: #1e293b;"><strong>Reporting Manager:</strong> ${managerName || "Direct / Self-Managed"}</p>
+                  ${hrHtml}
+                </div>
+                <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                  <h3 style="margin-top: 0; margin-bottom: 6px; color: #065f46; font-size: 14px; font-weight: 700;">Action Required: Submit Onboarding Documents</h3>
+                  <p style="margin: 0 0 12px 0; color: #047857; font-size: 13px; line-height: 1.5;">
+                    Your dedicated HR Partner (${hrName || "HR Operations"}) has initiated your onboarding workflow. Please sign in and upload your required identification, address verification, and banking information.
+                  </p>
+                  <a href="${appUrl}/dashboard/hr?tab=checklists&highlight=true" style="display: inline-block; padding: 9px 18px; background-color: #059669; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px;">
+                    Upload Onboarding Documents &rarr;
+                  </a>
+                </div>
+                <div style="margin-top: 20px;">
+                  <a href="${appUrl}/dashboard" style="display: inline-block; padding: 10px 20px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">Sign In to Workspace Dashboard</a>
+                </div>
+              </div>
+            `
+          });
+        }
+      } catch (postApprovalErr) {
+        console.error("Failed to execute post-approval onboarding workflow:", postApprovalErr);
+      }
+    }
+
+    // If user edited their own profile critical credentials, clean up old session and re-mint cookie
+    if (isSelf && (body.name || body.email || body.role)) {
+      try {
+        const { createSession, deleteSession } = await import("@/lib/session");
+        await deleteSession();
+        await createSession(
+          user._id.toString(),
+          user.tenantId.toString(),
+          user.name,
+          session.tenantName,
+          user.role
+        );
+      } catch (sessErr) {
+        console.error("Failed to refresh session cookie on profile update:", sessErr);
+      }
+    }
+
+    // Never return the password hash to the client - fetch fresh document to ensure all fields like salary are returned
+    const freshUser = await User.findById(user._id)
+      .select("-passwordHash")
+      .populate("managerId", "name email role photoUrl")
+      .populate("hrId", "name email role photoUrl")
+      .populate("onboardedBy.hrId", "name email role photoUrl")
+      .populate("documentsConfirmedBy.hrId", "name email role photoUrl")
+      .lean();
+    return NextResponse.json({ success: true, user: freshUser || user.toObject() });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API PUT Single Team error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE: Remove employee (Restricted to Admin).
+ * Re-routes their direct reports to their own manager.
+ */
+export async function DELETE(request: Request, { params }: RouteParams) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { getUserDataScope } = await import("@/lib/dataScope");
+    const dataScope = await getUserDataScope(session);
+    const canManageUsers = session.role === "Admin" || dataScope.canViewFeature("manageUsers");
+
+    if (!canManageUsers) {
+      return NextResponse.json({ error: "Forbidden: You do not have permission to manage user accounts" }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    if (id === session.userId) {
+      return NextResponse.json({ error: "Cannot delete your own admin account" }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    const user = await User.findById(id);
+    if (!user || user.tenantId.toString() !== session.tenantId) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    // Re-route reporting line: all direct reports now report to this user's manager (or cleared if top-level)
+    if (user.managerId) {
+      await User.updateMany(
+        { managerId: user._id },
+        { managerId: user.managerId }
+      );
+    } else {
+      await User.updateMany(
+        { managerId: user._id },
+        { $unset: { managerId: 1 } }
+      );
+    }
+
+    // Remove user
+    await user.deleteOne();
+
+    // Record in Audit Trail / ActivityLog
+    const { ActivityLog } = await import("@/models/ActivityLog");
+    await ActivityLog.create({
+      tenantId: new mongoose.Types.ObjectId(session.tenantId),
+      userId: new mongoose.Types.ObjectId(session.userId),
+      userName: session.userName || "Admin",
+      userRole: session.role || "Admin",
+      action: "Deleted Employee Account",
+      targetName: user.name || "Employee",
+      details: `Removed user account '${user.name}' (${user.email}) [Role: ${user.role}, Dept: ${user.department || "General"}].`,
+    });
+
+    return NextResponse.json({ success: true, message: "Employee removed successfully" });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API DELETE Single Team error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

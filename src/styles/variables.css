@@ -1,0 +1,78 @@
+:root {
+  /* Color Palette (Deep Slate & Vibrant Mint/Teal) */
+  --color-bg-light: #f6f8fa;
+  --color-bg-dark: #11161d;
+  --color-card-light: #ffffff;
+  --color-card-dark: #161c24;
+  --color-card-dark-secondary: #1e2632;
+  
+  --color-text-light-primary: #111827;
+  --color-text-light-secondary: #4b5563;
+  --color-text-light-muted: #9ca3af;
+  
+  --color-text-dark-primary: #f0f6fc;
+  --color-text-dark-secondary: #8b949e;
+  --color-text-dark-muted: #6e7681;
+  
+  /* Accents & Statuses - Cyan / Teal / Emerald */
+  --color-primary: #00c5a0; /* Mint Teal */
+  --color-primary-hover: #00b08e;
+  --color-primary-glow: rgba(0, 197, 160, 0.25);
+  
+  --color-teal-dark: #008080;
+  --color-teal-mint: #00c5a0;
+  --color-teal-light: #2dd4bf;
+  
+  --color-success: #00c5a0; /* Mint */
+  --color-warning: #f59e0b; /* Amber */
+  --color-danger: #f43f5e;  /* Rose */
+  --color-info: #0ea5e9;    /* Cyan */
+  
+  /* Borders */
+  --border-light: 1px solid #e5e7eb;
+  --border-dark: 1px solid #232d3b;
+  
+  /* Typography */
+  --font-heading: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-family: var(--font-body);
+  
+  /* Radius & Shadows */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
+  
+  /* Layout Dimensions */
+  --sidebar-width: 240px;
+  --header-height: 64px;
+}
+
+/* Base Light Mode variables */
+:root {
+  --bg-app: var(--color-bg-light);
+  --bg-card: var(--color-card-light);
+  --border-color: rgba(226, 232, 240, 0.8);
+  --text-primary: var(--color-text-light-primary);
+  --text-secondary: var(--color-text-light-secondary);
+  --text-muted: var(--color-text-light-muted);
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"],
+.dark {
+  --bg-app: var(--color-bg-dark);
+  --bg-card: var(--color-card-dark);
+  --border-color: #232d3b;
+  --text-primary: var(--color-text-dark-primary);
+  --text-secondary: var(--color-text-dark-secondary);
+  --text-muted: var(--color-text-dark-muted);
+}

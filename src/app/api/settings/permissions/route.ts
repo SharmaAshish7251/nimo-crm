@@ -1,0 +1,556 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
+import { connectToDatabase } from "@/lib/db";
+import { RolePermission } from "@/models/RolePermission";
+import mongoose from "mongoose";
+
+// Default module preset matrix for roles
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  OPS: {
+    overview: true,
+    team: true,
+    calendar: true,
+    projects: true,
+    chat: true,
+    clients: true,
+    bd: true,
+    finance: true,
+    referrals: true,
+    goals: true,
+    hr: true,
+    it: true,
+    analytics: true,
+    notifications: true,
+    settings: true,
+  },
+  Manager: {
+    overview: true,
+    team: true,
+    calendar: true,
+    projects: true,
+    chat: true,
+    clients: true,
+    bd: true,
+    finance: false,
+    referrals: true,
+    goals: true,
+    hr: true,
+    it: false,
+    analytics: false,
+    notifications: true,
+    settings: true,
+  },
+  HR: {
+    overview: true,
+    team: true,
+    calendar: true,
+    projects: true,
+    chat: true,
+    clients: false,
+    bd: false,
+    finance: false,
+    referrals: false,
+    goals: true,
+    hr: true,
+    it: false,
+    analytics: false,
+    notifications: true,
+    settings: false,
+  },
+  Employee: {
+    overview: true,
+    team: true,
+    calendar: true,
+    projects: true,
+    chat: true,
+    clients: false,
+    bd: false,
+    finance: false,
+    referrals: false,
+    goals: true,
+    hr: false,
+    it: false,
+    analytics: false,
+    notifications: true,
+    settings: false,
+  },
+};
+
+// Default spotlight feature announcement visibility preset matrix
+export const DEFAULT_SPOTLIGHT_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  OPS: {
+    enabled: true,
+    "shift-extensions-desk": true,
+    "attendance-regularization-desk": true,
+    "celebrations-hub": true,
+    "virtual-huddles": true,
+    "mail-center": true,
+    "whatsapp-panel": true,
+    "salary-slips-vault": true,
+    "fnf-desk": true,
+    "dynamic-role-permissions": true,
+    "client-device-telemetry": true,
+    "mobile-shift-clocking": true,
+  },
+  Manager: {
+    enabled: true,
+    "shift-extensions-desk": true,
+    "attendance-regularization-desk": true,
+    "celebrations-hub": true,
+    "virtual-huddles": true,
+    "mail-center": true,
+    "whatsapp-panel": true,
+    "salary-slips-vault": true,
+    "fnf-desk": true,
+    "dynamic-role-permissions": false,
+    "client-device-telemetry": false,
+    "mobile-shift-clocking": true,
+  },
+  HR: {
+    enabled: true,
+    "shift-extensions-desk": true,
+    "attendance-regularization-desk": true,
+    "celebrations-hub": true,
+    "virtual-huddles": true,
+    "mail-center": true,
+    "whatsapp-panel": false,
+    "salary-slips-vault": true,
+    "fnf-desk": true,
+    "dynamic-role-permissions": false,
+    "client-device-telemetry": true,
+    "mobile-shift-clocking": true,
+  },
+  Employee: {
+    enabled: true,
+    "shift-extensions-desk": false,
+    "attendance-regularization-desk": true,
+    "celebrations-hub": true,
+    "virtual-huddles": true,
+    "mail-center": false,
+    "whatsapp-panel": false,
+    "salary-slips-vault": true,
+    "fnf-desk": false,
+    "dynamic-role-permissions": false,
+    "client-device-telemetry": false,
+    "mobile-shift-clocking": true,
+  },
+};
+
+// Default feature action capabilities preset matrix
+export const DEFAULT_FEATURE_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  OPS: {
+    // Overview
+    viewKpiWidgets: true, viewShiftOverview: true, viewRecentActivity: true, viewAnnouncements: true, createAnnouncements: true,
+    // Team
+    viewTeamDirectory: true, viewEmployeeProfiles: true, editEmployeeProfiles: true, inviteTeamMembers: true, deactivateEmployees: true, reassignReportingLine: true, viewSalaryData: true, viewOrgChart: true, viewDeviceTelemetry: true,
+    // Calendar & Time
+    logOwnTimesheet: true, editOwnTimesheet: true, viewTeamTimesheets: true, approveTimesheets: true, exportTimesheets: true, manageShifts: true, viewShiftCalendar: true, clockInOut: true, canViewShiftClock: true, viewAllShiftExtensions: true, approveAdditionalShiftTime: true, exportShiftExtensions: true, viewLoginHoursSummary: true, viewTeamAvailability: true, manageTeamAvailability: true, logOwnAvailability: true, manageHolidays: true, importHolidayExcel: true, requestRegularization: true, approveRegularization: true, viewRegularizationDesk: true, viewCelebrations: true, sendCelebrationWishes: true,
+    // Projects
+    viewProjects: true, createProjects: true, deleteProjects: true, assignTasksToOthers: true, changeTaskStatus: true, commentOnTasks: true, deleteTaskComments: true, manageProjectWiki: true, viewProjectGantt: true, exportProjectData: true,
+    // Sprints
+    createSprints: true, moveBetweenSprints: true, completeSprints: true, deleteSprints: true,
+    // Drive
+    viewDriveFiles: true, uploadDriveFiles: true, downloadDriveFiles: true, shareDriveFiles: true, deleteDriveFiles: true, bulkDeleteDriveFiles: true,
+    // Chat
+    sendChatMessages: true, createChatChannels: true, deleteChatChannels: true, pinChatMessages: true, deleteOthersChatMessages: true, viewMailCenter: true, sendEmails: true, deleteEmails: true, viewWhatsAppPanel: true, sendWhatsAppMessages: true, startVirtualHuddles: true, joinVirtualHuddles: true, manageChatNotifications: true,
+    // HR & Leave
+    viewOwnLeaves: true, applyLeaves: true, viewAllLeaves: true, approveLeaves: true, viewLeaveBalances: true, manageLeaveBalances: true, viewSalarySlips: true, manageFnFSettlements: true, viewFnFSettlements: true, viewHRCasesSLA: true, manageCompanyChecklists: true, manageHRVault: true, manageHRCases: true, reassignHRPartner: true, manageHRIsolation: true, approveTimesheetsAndInvoices: true,
+    // Appraisals
+    viewOwnAppraisals: true, submitSelfReview: true, viewManagerReviews: true, createAppraisalCycles: true, submit360PeerReview: true,
+    // Goals & OKRs
+    viewGoals: true, createGoals: true, manageGoals: true, sendKudos: true, submitSurvey: true, createPulseSurveys: true,
+    // Analytics
+    viewAnalyticsOverview: true, viewPerformanceMetrics: true, viewAuditLogs: true, exportAuditLogs: true,
+    // OPS Portal
+    viewClients: true, createClients: true, manageClients: true, deleteClients: true, manageContracts: true, manageHRWorkdesk: true, manageExternalTeams: true, viewReports: true, exportClientData: true,
+    manageUsers: false, changeUserRoles: false, resetUserPasswords: false,
+    // BD & Leads
+    viewBD: true, manageLeads: true, deleteLeads: true, manageProposals: true, sendProposals: true, manageExecutiveTargets: true, exportBD: true,
+    // Finance & Invoices
+    viewFinancePortal: true, viewSelfServiceInvoices: true, createInvoices: true, approveInvoices: true, confirmInvoicePayments: true, exportInvoices: true, manageExpenses: true, viewExpenseReports: true, uploadInvoiceExcel: true, managePayroll: true, adjustSalarySlips: true, manageCompensationPolicy: true,
+    // IT & Infrastructure
+    viewITPortal: true, manageITAccess: true, manageITSubscriptions: true, manageITDevices: true, manageITInvoices: true, manageITAssetAllocation: true,
+    // Referrals
+    submitReferral: true, viewOwnReferrals: true, viewAllReferrals: true, manageReferrals: true,
+    // Notifications
+    viewNotifications: true, deleteNotifications: true,
+    // Settings & Security
+    viewWorkspaceSettings: true, editWorkspaceSettings: true, manageFileRestrictions: false, viewBillingSubscription: false, manageBilling: false, manageRolePermissions: false, viewIntegrations: true, manageIntegrations: false,
+  },
+  Manager: {
+    // Overview
+    viewKpiWidgets: true, viewShiftOverview: true, viewRecentActivity: true, viewAnnouncements: true, createAnnouncements: true,
+    // Team
+    viewTeamDirectory: true, viewEmployeeProfiles: true, editEmployeeProfiles: false, inviteTeamMembers: false, deactivateEmployees: false, reassignReportingLine: true, viewSalaryData: false, viewOrgChart: true, viewDeviceTelemetry: true,
+    // Calendar & Time
+    logOwnTimesheet: true, editOwnTimesheet: true, viewTeamTimesheets: true, approveTimesheets: true, exportTimesheets: true, manageShifts: true, viewShiftCalendar: true, clockInOut: true, canViewShiftClock: true, viewAllShiftExtensions: true, approveAdditionalShiftTime: true, exportShiftExtensions: true, viewLoginHoursSummary: false, viewTeamAvailability: true, manageTeamAvailability: true, logOwnAvailability: true, manageHolidays: false, importHolidayExcel: false, requestRegularization: true, approveRegularization: true, viewRegularizationDesk: true, viewCelebrations: true, sendCelebrationWishes: true,
+    // Projects
+    viewProjects: true, createProjects: true, deleteProjects: false, assignTasksToOthers: true, changeTaskStatus: true, commentOnTasks: true, deleteTaskComments: false, manageProjectWiki: true, viewProjectGantt: true, exportProjectData: true,
+    // Sprints
+    createSprints: true, moveBetweenSprints: true, completeSprints: true, deleteSprints: false,
+    // Drive
+    viewDriveFiles: true, uploadDriveFiles: true, downloadDriveFiles: true, shareDriveFiles: true, deleteDriveFiles: true, bulkDeleteDriveFiles: false,
+    // Chat
+    sendChatMessages: true, createChatChannels: true, deleteChatChannels: false, pinChatMessages: true, deleteOthersChatMessages: false, viewMailCenter: true, sendEmails: true, deleteEmails: false, viewWhatsAppPanel: true, sendWhatsAppMessages: true, startVirtualHuddles: true, joinVirtualHuddles: true, manageChatNotifications: true,
+    // HR & Leave
+    viewOwnLeaves: true, applyLeaves: true, viewAllLeaves: true, approveLeaves: true, viewLeaveBalances: true, manageLeaveBalances: false, viewSalarySlips: true, manageCompanyChecklists: false, manageHRVault: false, manageHRCases: false, reassignHRPartner: false, manageHRIsolation: false, approveTimesheetsAndInvoices: false,
+    // Appraisals
+    viewOwnAppraisals: true, submitSelfReview: true, viewManagerReviews: true, createAppraisalCycles: false,
+    // Goals & OKRs
+    viewGoals: true, createGoals: true, manageGoals: false, sendKudos: true, submitSurvey: true, createPulseSurveys: false,
+    // Analytics
+    viewAnalyticsOverview: true, viewPerformanceMetrics: true, viewAuditLogs: false, exportAuditLogs: false,
+    // OPS Portal
+    viewClients: false, createClients: false, manageClients: false, deleteClients: false, manageContracts: false, manageHRWorkdesk: false, manageExternalTeams: false, viewReports: false, exportClientData: false,
+    manageUsers: false, changeUserRoles: false, resetUserPasswords: false,
+    // BD & Leads
+    viewBD: true, manageLeads: true, deleteLeads: false, manageProposals: true, sendProposals: true, manageExecutiveTargets: false, exportBD: true,
+    // Finance & Invoices
+    viewFinancePortal: false, viewSelfServiceInvoices: true, createInvoices: true, approveInvoices: false, confirmInvoicePayments: false, exportInvoices: true, manageExpenses: false, viewExpenseReports: false, uploadInvoiceExcel: true, managePayroll: false, adjustSalarySlips: false, manageCompensationPolicy: false,
+    // IT & Infrastructure
+    viewITPortal: false, manageITAccess: false, manageITSubscriptions: false, manageITDevices: false, manageITInvoices: false,
+    // Referrals
+    submitReferral: true, viewOwnReferrals: true, viewAllReferrals: false, manageReferrals: false,
+    // Notifications
+    viewNotifications: true, deleteNotifications: false,
+    // Settings & Security
+    viewWorkspaceSettings: true, editWorkspaceSettings: false, manageFileRestrictions: false, viewBillingSubscription: false, manageBilling: false, manageRolePermissions: false, viewIntegrations: false, manageIntegrations: false,
+  },
+  HR: {
+    // Overview
+    viewKpiWidgets: true, viewShiftOverview: true, viewRecentActivity: true, viewAnnouncements: true, createAnnouncements: false,
+    // Team
+    viewTeamDirectory: true, viewEmployeeProfiles: true, editEmployeeProfiles: true, inviteTeamMembers: true, deactivateEmployees: false, reassignReportingLine: true, viewSalaryData: true, viewOrgChart: true,
+    // Calendar & Time
+    logOwnTimesheet: true, editOwnTimesheet: true, viewTeamTimesheets: true, approveTimesheets: true, exportTimesheets: true, manageShifts: false, viewShiftCalendar: true, clockInOut: true, canViewShiftClock: true, viewAllShiftExtensions: true, approveAdditionalShiftTime: true, exportShiftExtensions: true, viewLoginHoursSummary: true, viewTeamAvailability: true, manageTeamAvailability: true, logOwnAvailability: true, manageHolidays: true, importHolidayExcel: true, requestRegularization: true, approveRegularization: true, viewRegularizationDesk: true, viewCelebrations: true, sendCelebrationWishes: true,
+    // Projects
+    viewProjects: true, createProjects: false, deleteProjects: false, assignTasksToOthers: false, changeTaskStatus: false, commentOnTasks: true, deleteTaskComments: false, manageProjectWiki: true, viewProjectGantt: true, exportProjectData: false,
+    // Sprints
+    createSprints: false, moveBetweenSprints: false, completeSprints: false, deleteSprints: false,
+    // Drive
+    viewDriveFiles: true, uploadDriveFiles: true, downloadDriveFiles: true, shareDriveFiles: true, deleteDriveFiles: false, bulkDeleteDriveFiles: false,
+    // Chat
+    sendChatMessages: true, createChatChannels: false, deleteChatChannels: false, pinChatMessages: false, deleteOthersChatMessages: false, viewMailCenter: true, sendEmails: true, deleteEmails: false, viewWhatsAppPanel: false, sendWhatsAppMessages: false, startVirtualHuddles: true, joinVirtualHuddles: true, manageChatNotifications: true,
+    // HR & Leave
+    viewOwnLeaves: true, applyLeaves: true, viewAllLeaves: true, approveLeaves: true, viewLeaveBalances: true, manageLeaveBalances: true, viewSalarySlips: true, manageCompanyChecklists: true, manageHRVault: true, manageHRCases: true, reassignHRPartner: true, manageHRIsolation: true, approveTimesheetsAndInvoices: true,
+    // Appraisals
+    viewOwnAppraisals: true, submitSelfReview: true, viewManagerReviews: true, createAppraisalCycles: true,
+    // Goals & OKRs
+    viewGoals: true, createGoals: false, manageGoals: false, sendKudos: true, submitSurvey: true, createPulseSurveys: true,
+    // Analytics
+    viewAnalyticsOverview: true, viewPerformanceMetrics: true, viewAuditLogs: false, exportAuditLogs: false,
+    // OPS Portal
+    viewClients: false, createClients: false, manageClients: false, deleteClients: false, manageContracts: true, manageHRWorkdesk: true, manageExternalTeams: false, viewReports: false, exportClientData: false,
+    manageUsers: false, changeUserRoles: false, resetUserPasswords: false,
+    // BD & Leads
+    viewBD: false, manageLeads: false, deleteLeads: false, manageProposals: false, sendProposals: false, manageExecutiveTargets: false, exportBD: false,
+    // Finance & Invoices
+    viewFinancePortal: false, viewSelfServiceInvoices: true, createInvoices: false, approveInvoices: true, confirmInvoicePayments: false, exportInvoices: false, manageExpenses: false, viewExpenseReports: false, uploadInvoiceExcel: false, managePayroll: true, adjustSalarySlips: true, manageCompensationPolicy: true,
+    // IT & Infrastructure
+    viewITPortal: true, manageITAccess: false, manageITSubscriptions: false, manageITDevices: true, manageITInvoices: false,
+    // Referrals
+    submitReferral: true, viewOwnReferrals: true, viewAllReferrals: true, manageReferrals: true,
+    // Notifications
+    viewNotifications: true, deleteNotifications: false,
+    // Settings & Security — HR can only access own profile & password settings
+    viewWorkspaceSettings: true, editWorkspaceSettings: false, manageFileRestrictions: false, viewBillingSubscription: false, manageBilling: false, manageRolePermissions: false, viewIntegrations: false, manageIntegrations: false,
+  },
+  Employee: {
+    // Overview
+    viewKpiWidgets: true, viewShiftOverview: false, viewRecentActivity: true, viewAnnouncements: true, createAnnouncements: false,
+    // Team
+    viewTeamDirectory: true, viewEmployeeProfiles: true, editEmployeeProfiles: false, inviteTeamMembers: false, deactivateEmployees: false, reassignReportingLine: false, viewSalaryData: false, viewOrgChart: true, viewDeviceTelemetry: false,
+    // Calendar & Time
+    logOwnTimesheet: true, editOwnTimesheet: true, viewTeamTimesheets: false, approveTimesheets: false, exportTimesheets: false, manageShifts: false, viewShiftCalendar: true, clockInOut: true, canViewShiftClock: true, viewAllShiftExtensions: false, approveAdditionalShiftTime: false, exportShiftExtensions: false, viewLoginHoursSummary: false, viewTeamAvailability: false, manageTeamAvailability: false, logOwnAvailability: true, manageHolidays: false, importHolidayExcel: false, requestRegularization: true, approveRegularization: false, viewRegularizationDesk: false, viewCelebrations: true, sendCelebrationWishes: true,
+    // Projects
+    viewProjects: true, createProjects: false, deleteProjects: false, assignTasksToOthers: false, changeTaskStatus: true, commentOnTasks: true, deleteTaskComments: false, manageProjectWiki: false, viewProjectGantt: true, exportProjectData: false,
+    // Sprints
+    createSprints: false, moveBetweenSprints: false, completeSprints: false, deleteSprints: false,
+    // Drive
+    viewDriveFiles: true, uploadDriveFiles: true, downloadDriveFiles: true, shareDriveFiles: true, deleteDriveFiles: false, bulkDeleteDriveFiles: false,
+    // Chat
+    sendChatMessages: true, createChatChannels: false, deleteChatChannels: false, pinChatMessages: false, deleteOthersChatMessages: false, viewMailCenter: false, sendEmails: false, deleteEmails: false, viewWhatsAppPanel: false, sendWhatsAppMessages: false, startVirtualHuddles: false, joinVirtualHuddles: true, manageChatNotifications: false,
+    // HR & Leave
+    viewOwnLeaves: true, applyLeaves: true, viewAllLeaves: false, approveLeaves: false, viewLeaveBalances: true, manageLeaveBalances: false, viewSalarySlips: true, manageCompanyChecklists: false, manageHRVault: false, manageHRCases: false, reassignHRPartner: false, manageHRIsolation: false, approveTimesheetsAndInvoices: false,
+    // Appraisals
+    viewOwnAppraisals: true, submitSelfReview: true, viewManagerReviews: false, createAppraisalCycles: false,
+    // Goals & OKRs
+    viewGoals: true, createGoals: false, manageGoals: false, sendKudos: true, submitSurvey: true, createPulseSurveys: false,
+    // Analytics
+    viewAnalyticsOverview: false, viewPerformanceMetrics: false, viewAuditLogs: false, exportAuditLogs: false,
+    // OPS Portal
+    viewClients: false, createClients: false, manageClients: false, deleteClients: false, manageContracts: false, manageHRWorkdesk: false, manageExternalTeams: false, viewReports: false, exportClientData: false,
+    manageUsers: false, changeUserRoles: false, resetUserPasswords: false,
+    // BD & Leads
+    viewBD: false, manageLeads: false, deleteLeads: false, manageProposals: false, sendProposals: false, manageExecutiveTargets: false, exportBD: false,
+    // Finance & Invoices
+    viewFinancePortal: false, viewSelfServiceInvoices: true, createInvoices: false, approveInvoices: false, confirmInvoicePayments: false, exportInvoices: false, manageExpenses: false, viewExpenseReports: false, uploadInvoiceExcel: false, managePayroll: false, adjustSalarySlips: false, manageCompensationPolicy: false,
+    // IT & Infrastructure
+    viewITPortal: false, manageITAccess: false, manageITSubscriptions: false, manageITDevices: false, manageITInvoices: false,
+    // Referrals
+    submitReferral: true, viewOwnReferrals: true, viewAllReferrals: false, manageReferrals: false,
+    // Notifications
+    viewNotifications: true, deleteNotifications: false,
+    // Settings & Security
+    viewWorkspaceSettings: true, editWorkspaceSettings: false, manageFileRestrictions: false, viewBillingSubscription: false, manageBilling: false, manageRolePermissions: false, viewIntegrations: false, manageIntegrations: false,
+  },
+};
+
+/**
+ * GET: Fetch all module & granular feature permissions for the current tenant.
+ */
+export async function GET() {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await connectToDatabase();
+
+    const dbPermissions = await RolePermission.find({
+      tenantId: new mongoose.Types.ObjectId(session.tenantId),
+    });
+
+    const permissionsMap: Record<string, Record<string, boolean>> = JSON.parse(
+      JSON.stringify(DEFAULT_ROLE_PERMISSIONS)
+    );
+
+    const featurePermissionsMap: Record<string, Record<string, boolean>> = JSON.parse(
+      JSON.stringify(DEFAULT_FEATURE_PERMISSIONS)
+    );
+
+    const spotlightPermissionsMap: Record<string, Record<string, boolean>> = JSON.parse(
+      JSON.stringify(DEFAULT_SPOTLIGHT_PERMISSIONS)
+    );
+
+    dbPermissions.forEach((doc) => {
+      if (doc.role) {
+        if (doc.modulePermissions) {
+          permissionsMap[doc.role] = {
+            ...(permissionsMap[doc.role] || DEFAULT_ROLE_PERMISSIONS.Employee),
+            ...(doc.modulePermissions as any),
+          };
+        }
+        if (doc.featurePermissions) {
+          featurePermissionsMap[doc.role] = {
+            ...(featurePermissionsMap[doc.role] || DEFAULT_FEATURE_PERMISSIONS.Employee),
+            ...(doc.featurePermissions as any),
+          };
+        }
+        if ((doc as any).spotlightPermissions) {
+          spotlightPermissionsMap[doc.role] = {
+            ...(spotlightPermissionsMap[doc.role] || DEFAULT_SPOTLIGHT_PERMISSIONS.Employee),
+            ...((doc as any).spotlightPermissions as any),
+          };
+        }
+      }
+    });
+
+    // Clean up obsolete sales module/features and ensure proper defaults for all roles
+    Object.keys(permissionsMap).forEach((roleKey) => {
+      if (permissionsMap[roleKey]) {
+        delete (permissionsMap[roleKey] as any).sales;
+      }
+    });
+
+    Object.keys(featurePermissionsMap).forEach((roleKey) => {
+      const fMap = featurePermissionsMap[roleKey];
+      if (fMap) {
+        // Clean up obsolete sales features
+        delete (fMap as any).viewSalesWorkdesk;
+        delete (fMap as any).createSalesDeals;
+        delete (fMap as any).editSalesDeals;
+        delete (fMap as any).deleteSalesDeals;
+        delete (fMap as any).changeDealStages;
+        delete (fMap as any).manageDeals;
+        delete (fMap as any).exportSales;
+        delete (fMap as any).manageSalesSettings;
+
+        // Apply defaults for newly introduced granular permissions if undefined
+        const roleDefaults = DEFAULT_FEATURE_PERMISSIONS[roleKey] || DEFAULT_FEATURE_PERMISSIONS.Employee;
+        Object.keys(roleDefaults).forEach((fKey) => {
+          if (fMap[fKey] === undefined) {
+            fMap[fKey] = roleDefaults[fKey];
+          }
+        });
+      }
+    });
+
+    Object.keys(spotlightPermissionsMap).forEach((roleKey) => {
+      const sMap = spotlightPermissionsMap[roleKey];
+      if (sMap) {
+        const roleDefaults = DEFAULT_SPOTLIGHT_PERMISSIONS[roleKey] || DEFAULT_SPOTLIGHT_PERMISSIONS.Employee;
+        Object.keys(roleDefaults).forEach((sKey) => {
+          if (sMap[sKey] === undefined) {
+            sMap[sKey] = roleDefaults[sKey];
+          }
+        });
+      }
+    });
+
+    const customRoles = dbPermissions.filter((d) => d.isCustom).map((d) => d.role);
+
+    return NextResponse.json({
+      permissions: permissionsMap,
+      featurePermissions: featurePermissionsMap,
+      spotlightPermissions: spotlightPermissionsMap,
+      defaultPermissions: DEFAULT_ROLE_PERMISSIONS,
+      defaultFeaturePermissions: DEFAULT_FEATURE_PERMISSIONS,
+      defaultSpotlightPermissions: DEFAULT_SPOTLIGHT_PERMISSIONS,
+      customRoles,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API GET Permissions error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * POST: Update, reset, or import module & granular feature action permissions for a role (Admin only).
+ * Body:
+ *   - Normal: { role: string, isCustom?: boolean, modulePermissions: { ... }, featurePermissions: { ... } }
+ *   - Reset:  { action: "reset", role: string }
+ *   - Import: { action: "bulk-import", policies: { [role]: { modulePermissions, featurePermissions, isCustom } } }
+ */
+export async function POST(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (session.role !== "Admin" && session.role !== "OPS" && session.role !== "HR") {
+      return NextResponse.json({ error: "Forbidden: Privileged access required" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    await connectToDatabase();
+
+    // 1. Bulk Import Action
+    if (body.action === "bulk-import" && body.policies && typeof body.policies === "object") {
+      const tenantObjectId = new mongoose.Types.ObjectId(session.tenantId);
+      const entries = Object.entries(body.policies);
+      for (const [rName, policyData] of entries) {
+        if (!rName || rName === "Admin") continue;
+        const p = policyData as any;
+        await RolePermission.findOneAndUpdate(
+          { tenantId: tenantObjectId, role: rName.trim() },
+          {
+            $set: {
+              role: rName.trim(),
+              isCustom: p.isCustom ?? !["OPS", "Manager", "HR", "Employee"].includes(rName.trim()),
+              modulePermissions: p.modulePermissions || {},
+              featurePermissions: p.featurePermissions || {},
+              spotlightPermissions: p.spotlightPermissions || {},
+            },
+          },
+          { upsert: true }
+        );
+      }
+      return NextResponse.json({ success: true, message: "Bulk policies imported successfully" });
+    }
+
+    const { role, isCustom, modulePermissions, featurePermissions, spotlightPermissions, action } = body;
+
+    if (!role || typeof role !== "string" || !role.trim()) {
+      return NextResponse.json({ error: "Invalid role specified" }, { status: 400 });
+    }
+
+    const cleanRole = role.trim();
+
+    if (cleanRole === "Admin") {
+      return NextResponse.json({ error: "Admin role permissions cannot be altered" }, { status: 400 });
+    }
+
+    const tenantObjectId = new mongoose.Types.ObjectId(session.tenantId);
+
+    // 2. Reset to System Defaults Action
+    if (action === "reset") {
+      if (["OPS", "Manager", "HR", "Employee"].includes(cleanRole)) {
+        await RolePermission.deleteOne({
+          tenantId: tenantObjectId,
+          role: cleanRole,
+        });
+      } else {
+        // For custom roles, reset to Employee template
+        await RolePermission.findOneAndUpdate(
+          { tenantId: tenantObjectId, role: cleanRole },
+          {
+            $set: {
+              modulePermissions: DEFAULT_ROLE_PERMISSIONS.Employee,
+              featurePermissions: DEFAULT_FEATURE_PERMISSIONS.Employee,
+              spotlightPermissions: DEFAULT_SPOTLIGHT_PERMISSIONS.Employee,
+            },
+          }
+        );
+      }
+      return NextResponse.json({ success: true, message: `Reset '${cleanRole}' policy to defaults` });
+    }
+
+    // 3. Normal Update / Save Action
+    const updatePayload: any = {
+      role: cleanRole,
+    };
+
+    if (isCustom !== undefined) updatePayload.isCustom = isCustom;
+    if (modulePermissions) updatePayload.modulePermissions = modulePermissions;
+    if (featurePermissions) updatePayload.featurePermissions = featurePermissions;
+    if (spotlightPermissions) updatePayload.spotlightPermissions = spotlightPermissions;
+
+    const updatedDoc = await RolePermission.findOneAndUpdate(
+      {
+        tenantId: tenantObjectId,
+        role: cleanRole,
+      },
+      {
+        $set: updatePayload,
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    return NextResponse.json({ success: true, permission: updatedDoc });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API POST Permissions error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE: Remove a custom role (Admin only).
+ * Query param: ?role=...
+ */
+export async function DELETE(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (session.role !== "Admin") {
+      return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const roleToDelete = searchParams.get("role");
+
+    if (!roleToDelete || ["Admin", "OPS", "Manager", "HR", "Employee"].includes(roleToDelete)) {
+      return NextResponse.json({ error: "Cannot delete built-in system roles" }, { status: 400 });
+    }
+
+    await connectToDatabase();
+
+    await RolePermission.deleteOne({
+      tenantId: new mongoose.Types.ObjectId(session.tenantId),
+      role: roleToDelete,
+    });
+
+    return NextResponse.json({ success: true, deletedRole: roleToDelete });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Internal Server Error";
+    console.error("API DELETE Permission error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

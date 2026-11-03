@@ -1,0 +1,413 @@
+/**
+ * Feature Highlights & Release Announcement Registry
+ *
+ * Enforces the rule: When new features are added, highlight them when user logs in.
+ * Register all newly added features, modules, and workflows here.
+ */
+
+export interface HighlightFeatureItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: string; // FontAwesome 6 icon class (fa-solid fa-...)
+  badge?: string;
+  tag: string;
+  category?: "Operations & Shifts" | "Communication" | "HRMS & Payroll" | "Security";
+  highlights?: string[];
+  href: string;
+  applicableRoles?: string[]; // If empty or undefined, applicable to all roles
+}
+
+export interface FeatureRelease {
+  id: string; // Unique release identifier e.g. "release-2026-10-hrms-suite"
+  version: string;
+  releaseDate: string;
+  badge: string;
+  title: string;
+  subtitle: string;
+  features: HighlightFeatureItem[];
+}
+
+export const FEATURE_RELEASES: FeatureRelease[] = [
+  {
+    id: "release-2026-11-universal-data-backup-and-restore",
+    version: "v3.1",
+    releaseDate: "November 2026",
+    badge: "Data & Disaster Recovery",
+    title: "Universal Data Backup, Export & Database Recovery Desk",
+    subtitle: "Full workspace snapshot backup, portable database file restore (.nexace.json) with merge or overwrite protection, and universal CSV/Excel tabular importer.",
+    features: [
+      {
+        id: "universal-database-backup-export",
+        title: "Full Workspace Database Backup & Portable Archive",
+        description: "1-Click complete snapshot of all 56 tenant collections into a verified, SHA-256 checksummed .nexace.json backup archive with selective domain filtering and optional staging data sanitization.",
+        icon: "fa-solid fa-box-archive text-teal-600",
+        badge: "NEW",
+        tag: "Data & Backup",
+        category: "Security",
+        highlights: [
+          "Complete multi-tenant database export across all 56 domain collections",
+          "Selective domain exports: Identity, Projects, HR, Finance, Time & Shifts, Sales, IT",
+          "Cryptographic SHA-256 payload checksum verification on every generated archive",
+          "Optional sensitive data masking (passwords, bank accounts) for testing and staging",
+        ],
+        href: "/dashboard/settings?tab=backup",
+        applicableRoles: ["Admin", "Sub Admin", "OPS"],
+      },
+      {
+        id: "database-restore-and-recovery",
+        title: "Database Restore & Disaster Recovery Engine",
+        description: "Restore your entire workspace or individual collections from database backup files with non-destructive Safe Merge & Upsert or Clean Overwrite disaster recovery.",
+        icon: "fa-solid fa-rotate-left text-amber-500",
+        badge: "NEW",
+        tag: "Disaster Recovery",
+        category: "Security",
+        highlights: [
+          "Pre-restore dry-run inspection: checks manifest format, checksum, and collection diffs",
+          "Safe Merge & Upsert: updates existing records and inserts missing ones without deleting data",
+          "Clean Overwrite mode: total disaster recovery with strict security keyword confirmation",
+          "Strict tenantId re-stamping on every restored document ensuring 100% data isolation",
+        ],
+        href: "/dashboard/settings?tab=backup",
+        applicableRoles: ["Admin"],
+      },
+      {
+        id: "universal-tabular-importer-exporter",
+        title: "Universal Tabular Data Importer & CSV Exporter",
+        description: "Drag-and-drop batch ingestion for Employees, Leads, Clients, Tasks, and Hardware Devices with intelligent column synonym matching and Excel template generator.",
+        icon: "fa-solid fa-file-import text-primary",
+        badge: "NEW",
+        tag: "Data Ingestion",
+        category: "Operations & Shifts",
+        highlights: [
+          "Support for CSV and Excel (.xlsx, .xls) files with live table preview before import",
+          "Intelligent column synonym matching (e.g. 'Employee Name', 'Work Email')",
+          "Instant sample template generation for Employees, Leads, Clients, Tasks, and Assets",
+          "Detailed error auditing reporting skipped rows, syntax violations, and duplicate counts",
+        ],
+        href: "/dashboard/settings?tab=backup",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR"],
+      },
+    ],
+  },
+  {
+    id: "release-2026-11-invoice-history-and-policy-engine",
+    version: "v3.0",
+    releaseDate: "November 2026",
+    badge: "Finance & Payroll Suite",
+    title: "Invoice Interaction History & Master Policy Engine",
+    subtitle: "Complete interaction audit trail across all internal & external invoices, plus 1-click compensation policy toggling and automatic salary breakdown picking.",
+    features: [
+      {
+        id: "invoice-interaction-history-timeline",
+        title: "Internal & External Invoice History & Activity Timeline",
+        description: "Log notes, client email correspondences, phone calls, payment memos, and view synthesized status change audits across all corporate and staff invoices via an interactive slide-over drawer.",
+        icon: "fa-solid fa-timeline text-primary",
+        badge: "NEW",
+        tag: "Finance & Invoices",
+        category: "Communication",
+        highlights: [
+          "Complete activity history for internal staff claims and external corporate client invoices",
+          "Log notes, emails, calls, meetings, and payment proofs with attachments",
+          "Quick category filter pills: All, Notes, Emails, Calls, Meetings, Payments, and Status Changes",
+          "Seamless drawer available in Invoice Details, Admin Invoices Table, and Finance Dashboard",
+        ],
+        href: "/dashboard/finance?tab=invoices",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Employee"],
+      },
+      {
+        id: "master-compensation-policy-toggle",
+        title: "Master Policy Toggle & 1-Click Auto-Picking",
+        description: "Control all compensation rules with a single Master Switch. Automatically populate standard allowances (40% HRA, 15% Special) and statutory deductions (12% PF, ₹200 PT, TDS) based on employee contract type.",
+        icon: "fa-solid fa-toggle-on text-emerald-500",
+        badge: "ENHANCED",
+        tag: "HRMS & Payroll",
+        category: "HRMS & Payroll",
+        highlights: [
+          "Master Policy Toggle: Enable or suspend all rules in 1 click across the entire organization",
+          "Auto-Picking: Base salary instantly calculates HRA, Special Allowance, PF, and PT",
+          "Direct Generator Activation: Turn on policy rules directly from SelfInvoiceGenerator banner",
+          "Auto-healing DB defaults: Guarantees enterprise standard presets are never missing",
+        ],
+        href: "/dashboard/settings?tab=invoices",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR"],
+      },
+    ],
+  },
+  {
+    id: "release-2026-11-compensation-policy",
+    version: "v2.9",
+    releaseDate: "November 2026",
+    badge: "Finance & Payroll Rules",
+    title: "Customizable Compensation Policy & Salary Calculations",
+    subtitle: "Fine-tune Loss of Pay (LOP) divisor formulas, overtime multipliers, statutory deductions (PF/ESI/PT), and earnings presets across your organization.",
+    features: [
+      {
+        id: "customizable-compensation-policy",
+        title: "Customizable Compensation & Invoice Policy",
+        description: "Admin, OPS, and HR can now customize LOP divisor modes (calendar days, working days, fixed 26/30, custom), grace days, overtime multipliers, tax & TDS withholding, and standard allowance/deduction presets.",
+        icon: "fa-solid fa-sliders text-emerald-500",
+        badge: "NEW",
+        tag: "Finance & Invoices",
+        category: "HRMS & Payroll",
+        highlights: [
+          "Configurable LOP formula: Divisor mode, custom divisor, and grace absence allowance",
+          "Dynamic Overtime: Custom standard (1.5x), weekend (2.0x), and holiday multipliers",
+          "Statutory & Tax Rules: TDS withholding %, Professional Tax (PT), Provident Fund (PF), and ESI",
+          "One-click reset to standard enterprise defaults anytime",
+        ],
+        href: "/dashboard/finance?tab=invoices",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR"],
+      },
+    ],
+  },
+
+  {
+    id: "release-2026-10-enterprise-suite",
+    version: "v2.8",
+    releaseDate: "October 2026",
+    badge: "Enterprise Suite & Operations Suite",
+    title: "Shift Extensions, Regularization, Celebrations & Unified Communications",
+    subtitle: "Explore newly launched operational desks, automated attendance extensions, real-time video huddles, and transparent compensation vaults.",
+    features: [
+      {
+        id: "custom-onboarding-presets",
+        title: "Customizable Onboarding Checklists & Document Presets",
+        description: "Configure tailored document checklists (1-Doc, 2-Docs, 3-Docs, 5-Docs) per hire, create custom presets, add on-the-fly requirements, and manage access dynamically via Role Data Control.",
+        icon: "fa-solid fa-file-circle-check text-emerald-500",
+        badge: "NEW",
+        tag: "Contracts & Onboarding",
+        category: "HRMS & Payroll",
+        highlights: [
+          "Pre-seeded presets: Quick NDA (1 Doc), Fast Contractor (2 Docs), Contractor Core (3 Docs), Full Standard (5 Docs)",
+          "Interactive checklist builder with add/remove document controls",
+          "Save tailored items as reusable custom presets in 1 click",
+          "Dynamic RBAC in Settings > Role Data Control to toggle HR/Manager access anytime",
+        ],
+        href: "/dashboard/hr?tab=checklists",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager"],
+      },
+      {
+        id: "shift-extensions-desk",
+        title: "Shift Extensions & Overtime Desk",
+        description: "Review and approve employee requests to work past standard limits with 7 rapid approval presets (+30m to +4h), department info, custom hours, and live audit slips.",
+        icon: "fa-solid fa-clock-rotate-left text-amber-500",
+        badge: "NEW",
+        tag: "Attendance & Shifts",
+        category: "Operations & Shifts",
+        highlights: [
+          "7 quick approval presets (+30m, +1h, +1.5h, +2h, +2.5h, +3h, +4h)",
+          "Department info and shift schedule compliance",
+          "Comprehensive audit slip with timestamp & reason notes",
+          "Automated attendance hours & overtime sync",
+        ],
+        href: "/dashboard/calendar?tab=extensions",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager"],
+      },
+      {
+        id: "attendance-regularization-desk",
+        title: "Attendance Regularization Workdesk",
+        description: "1-click attendance regularization workflow for missed punches and on-duty visits with full managerial audit trails.",
+        icon: "fa-solid fa-business-time text-emerald-500",
+        badge: "NEW",
+        tag: "Attendance",
+        category: "Operations & Shifts",
+        highlights: [
+          "Inline 1-click regularization review & approvals",
+          "Missed clock-in & clock-out adjustments",
+          "Dual verification for HR and Department Managers",
+          "Direct synchronization with attendance calendar",
+        ],
+        href: "/dashboard/calendar?tab=attendance",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager", "Employee"],
+      },
+      {
+        id: "celebrations-hub",
+        title: "Celebrations & Wishes Portal",
+        description: "Interactive team celebrations portal celebrating birthdays and work anniversaries with automated confetti, custom greetings, and team wish feeds.",
+        icon: "fa-solid fa-cake-candles text-pink-500",
+        badge: "NEW",
+        tag: "Culture & Team",
+        category: "Communication",
+        highlights: [
+          "Upcoming birthdays & tenure milestones overview",
+          "Interactive celebratory animations & confetti blasts",
+          "1-click congratulations and personalized wishes",
+          "Team-wide social celebration board",
+        ],
+        href: "/dashboard/calendar?tab=celebrations",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager", "Employee"],
+      },
+      {
+        id: "virtual-huddles",
+        title: "Virtual Huddles & Instant Video Rooms",
+        description: "Start or join instant team video conferences right inside Chat & Mail. Features HD video, crystal-clear audio, screen sharing, and team conference rooms.",
+        icon: "fa-solid fa-video text-blue-500",
+        badge: "NEW",
+        tag: "Communication",
+        category: "Communication",
+        highlights: [
+          "Instant 1-click conference room generation",
+          "Native screen sharing & collaborative audio",
+          "Zero third-party downloads or external plugins",
+          "Seamlessly integrated into Chat & Mail navigation",
+        ],
+        href: "/dashboard/chat?tab=video",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager", "Employee"],
+      },
+      {
+        id: "mail-center",
+        title: "Integrated Mail Center & Unified Inbox",
+        description: "Unified corporate email client embedded inside the CRM. Send, receive, search, and organize emails with attachments and rich formatting.",
+        icon: "fa-solid fa-envelope text-indigo-500",
+        badge: "NEW",
+        tag: "Communication",
+        category: "Communication",
+        highlights: [
+          "Unified Inbox, Sent, Drafts, and Starred mail folders",
+          "Rich HTML email composer with attachment support",
+          "Direct integration with client & employee directories",
+          "Instant search by subject, recipient, and sender",
+        ],
+        href: "/dashboard/chat?tab=mail",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager"],
+      },
+      {
+        id: "whatsapp-panel",
+        title: "WhatsApp Business Web Panel",
+        description: "Direct WhatsApp Business Web integration inside the CRM for instant client messaging, contractor communications, and customer support.",
+        icon: "fa-brands fa-whatsapp text-emerald-500",
+        badge: "NEW",
+        tag: "Communication",
+        category: "Communication",
+        highlights: [
+          "Integrated WhatsApp Web workspace panel",
+          "Direct client & vendor messaging without switching tabs",
+          "Secure corporate session persistence",
+          "Optimized for high-velocity communications",
+        ],
+        href: "/dashboard/chat?tab=whatsapp",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager"],
+      },
+      {
+        id: "salary-slips-vault",
+        title: "Salary Slips & Verified Compensation Vault",
+        description: "Transparent employee self-service compensation desk with 50/30/20 statutory breakdowns (Basic Pay, HRA, Allowances), automated LOP computation, and printable slips.",
+        icon: "fa-solid fa-file-invoice-dollar text-emerald-500",
+        badge: "ENHANCED",
+        tag: "HRMS & Payroll",
+        category: "HRMS & Payroll",
+        highlights: [
+          "Itemized Basic (50%), HRA (30%), and Allowances (20%)",
+          "Automated Loss of Pay (LOP) calculations",
+          "Official Form 16 / Rule 26D printable A4 format",
+          "CSV export & UTR transaction tracking",
+        ],
+        href: "/dashboard/hr?tab=payslips",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR", "Manager", "Employee"],
+      },
+      {
+        id: "fnf-desk",
+        title: "Full & Final (F&F) Settlement Desk",
+        description: "Automated end-to-end offboarding: gratuity calculation, leave encashment, asset handovers, and 1-click clearance certificate generation.",
+        icon: "fa-solid fa-handshake text-teal-500",
+        badge: "ENHANCED",
+        tag: "HRMS & Payroll",
+        category: "HRMS & Payroll",
+        highlights: [
+          "Automated gratuity, notice period & leave encashment",
+          "Multi-department clearances & hardware asset handover",
+          "1-click clearance certificate generation",
+          "Disbursement ledger & bank reference recording",
+        ],
+        href: "/dashboard/hr?tab=fnf",
+        applicableRoles: ["Admin", "HR", "Sub Admin", "OPS", "Manager"],
+      },
+      {
+        id: "dynamic-role-permissions",
+        title: "Dynamic Role & Portals Permissions",
+        description: "Granular control over all CRM portals and modules: toggle Chat & Mail, Calendar & Timesheets, HR, and IT features dynamically per role.",
+        icon: "fa-solid fa-shield-halved text-cyan-500",
+        badge: "ENHANCED",
+        tag: "Security & RBAC",
+        category: "Security",
+        highlights: [
+          "Granular CRUD feature toggles per role",
+          "Direct portal-level access control",
+          "Preset role templates with 1-click apply",
+          "Realtime permission enforcement across API and UI",
+        ],
+        href: "/dashboard/settings?tab=permissions",
+        applicableRoles: ["Admin", "Sub Admin", "OPS"],
+      },
+      {
+        id: "client-device-telemetry",
+        title: "Device Telemetry & Login Geo-Tracking",
+        description: "Automatic device type, browser, client OS, and IP address recording on logins and shift attendance punches.",
+        icon: "fa-solid fa-mobile-screen-button text-purple-500",
+        badge: "ENHANCED",
+        tag: "Audit & Security",
+        category: "Security",
+        highlights: [
+          "Real-time IP & client geo-telemetry tracking",
+          "Device form factor (Desktop, Tablet, Mobile) classification",
+          "Browser & Operating System detection",
+          "Visual badges in Team profiles & Attendance desks",
+        ],
+        href: "/dashboard/team?tab=directory",
+        applicableRoles: ["Admin", "Sub Admin", "OPS", "HR"],
+      },
+    ],
+  },
+];
+
+/**
+ * Get the latest feature release
+ */
+export function getLatestFeatureRelease(): FeatureRelease | null {
+  return FEATURE_RELEASES[0] || null;
+}
+
+/**
+ * Storage key for tracking user feature acknowledgement
+ */
+export function getFeatureSeenStorageKey(userId: string): string {
+  return `nexace_seen_feature_release_${userId}`;
+}
+
+/**
+ * Check if the user has already acknowledged a specific release ID
+ */
+export function hasUserSeenRelease(userId: string, releaseId: string): boolean {
+  if (typeof window === "undefined" || !userId) return true;
+  try {
+    const seen = localStorage.getItem(getFeatureSeenStorageKey(userId));
+    return seen === releaseId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark release as acknowledged/seen for the user
+ */
+export function markReleaseAsSeen(userId: string, releaseId: string): void {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    localStorage.setItem(getFeatureSeenStorageKey(userId), releaseId);
+  } catch (err) {
+    console.error("Failed to save feature acknowledgement in storage", err);
+  }
+}
+
+/**
+ * Get features filtered for a specific user role
+ */
+export function getFeaturesForRole(features: HighlightFeatureItem[], role?: string): HighlightFeatureItem[] {
+  if (!role) return features;
+  return features.filter((feat) => {
+    if (!feat.applicableRoles || feat.applicableRoles.length === 0) return true;
+    return feat.applicableRoles.includes(role);
+  });
+}
+
