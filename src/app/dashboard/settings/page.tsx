@@ -16,6 +16,7 @@ import { cn, generateSecurePassword, validateDob, getMaxDobDateString } from "@/
 import { useTabPersistence } from "@/hooks/useTabPersistence";
 import { RoleDataControlTab } from "@/components/settings/RoleDataControlTab";
 import DataBackupRestoreTab from "@/components/settings/DataBackupRestoreTab";
+import IntegrationsAndDatabaseTab from "@/components/settings/IntegrationsAndDatabaseTab";
 import { AccessRestricted } from "@/components/ui/AccessRestricted";
 import { removeSignatureBackground } from "@/lib/signature";
 
@@ -25,10 +26,10 @@ function SettingsPageContent() {
   const { user, loading: authLoading, refreshUser } = useAuth();
   const { can, isAdmin, isOPS, isHR, canAccessModule, loading: permLoading } = usePermissions();
 
-  const [activeTab, setActiveTab] = useTabPersistence<"profile" | "security" | "subscription" | "permissions" | "organization" | "backup">(
+  const [activeTab, setActiveTab] = useTabPersistence<"profile" | "security" | "subscription" | "permissions" | "organization" | "backup" | "integrations">(
     "settings_active_tab_v3",
     "profile",
-    ["profile", "security", "subscription", "permissions", "organization", "backup"]
+    ["profile", "security", "subscription", "permissions", "organization", "backup", "integrations"]
   );
 
   // Sync tab with URL searchParams and handle redirection for moved tabs
@@ -55,7 +56,7 @@ function SettingsPageContent() {
       return;
     }
 
-    if (["profile", "security", "subscription", "permissions", "organization", "backup"].includes(tabParam)) {
+    if (["profile", "security", "subscription", "permissions", "organization", "backup", "integrations"].includes(tabParam)) {
       setActiveTab(tabParam as any);
     }
   }, [searchParams, router, setActiveTab]);
@@ -1138,6 +1139,20 @@ function SettingsPageContent() {
             )}
           >
             <i className="fa-solid fa-database text-teal-500 text-sm" /> Backup &amp; Recovery
+          </button>
+        )}
+
+        {(isAdmin || isOPS) && (
+          <button
+            onClick={() => setActiveTab("integrations")}
+            className={cn(
+              "px-3.5 py-2.5 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 sm:shrink touch-target",
+              activeTab === "integrations"
+                ? "bg-background text-primary shadow-xs font-bold border border-border"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            <i className="fa-solid fa-plug text-cyan-500 text-sm" /> Integrations &amp; DB
           </button>
         )}
       </div>
@@ -3676,6 +3691,11 @@ function SettingsPageContent() {
       {/* TAB 5: UNIVERSAL DATA BACKUP, EXPORT & RESTORE */}
       {activeTab === "backup" && (isAdmin || isOPS) && (
         <DataBackupRestoreTab />
+      )}
+
+      {/* TAB 6: INTEGRATIONS & CLOUD DATABASE SWITCHER */}
+      {activeTab === "integrations" && (isAdmin || isOPS) && (
+        <IntegrationsAndDatabaseTab />
       )}
 
       {/* Remove Profile Photo Confirmation Modal */}

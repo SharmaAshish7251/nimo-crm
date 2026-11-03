@@ -128,7 +128,23 @@ export default function RegisterPage() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="space-y-3.5">
+          {/* Google 1-Click Sign-up Button */}
+          <a
+            href="/api/auth/google?intent=register"
+            className="flex items-center justify-center gap-3 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222d] hover:bg-slate-50 dark:hover:bg-[#222c3a] text-slate-800 dark:text-slate-100 text-sm font-semibold shadow-2xs transition-all no-underline cursor-pointer select-none"
+          >
+            <i className="fa-brands fa-google text-red-500 text-base" />
+            <span>Sign up with Google (Zero Setup)</span>
+          </a>
+
+          <div className="relative flex items-center justify-center my-3">
+            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
+            <span className="bg-card px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground absolute">
+              Or register with email
+            </span>
+          </div>
+
           <form action={formAction} className="space-y-3.5">
             {(state?.message || verificationError) && (
               <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-md font-medium">

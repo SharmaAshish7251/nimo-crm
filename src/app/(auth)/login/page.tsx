@@ -39,8 +39,41 @@ function LoginForm() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Google 1-Click Sign-in Button */}
+          <a
+            href="/api/auth/google?intent=login"
+            className="flex items-center justify-center gap-3 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222d] hover:bg-slate-50 dark:hover:bg-[#222c3a] text-slate-800 dark:text-slate-100 text-sm font-semibold shadow-2xs transition-all no-underline cursor-pointer select-none"
+          >
+            <i className="fa-brands fa-google text-red-500 text-base" />
+            <span>Continue with Google</span>
+          </a>
+
+          <div className="relative flex items-center justify-center my-3">
+            <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
+            <span className="bg-card px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground absolute">
+              Or sign in with email
+            </span>
+          </div>
+
           <form action={formAction} className="space-y-4">
+            {errorParam === "google_not_configured" && (
+              <div className="p-3.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25 rounded-xl font-medium space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-sm">
+                  <i className="fa-brands fa-google text-amber-500" /> Google OAuth Credentials Needed
+                </div>
+                <p className="leading-relaxed">
+                  Please add <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_ID</code> and <code className="bg-muted px-1 rounded">GOOGLE_CLIENT_SECRET</code> to your <code className="bg-muted px-1 rounded">.env.local</code> or Vercel Environment Variables to enable Google 1-Click Sign In.
+                </p>
+              </div>
+            )}
+
+            {errorParam === "google_denied" && (
+              <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-xl font-medium flex items-center gap-2">
+                <i className="fa-solid fa-circle-exclamation text-base" />
+                <span>Google sign-in was cancelled or access was denied.</span>
+              </div>
+            )}
             {errorParam === "account_removed" && (
               <div className="p-3.5 text-xs bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/25 rounded-xl font-medium flex items-start gap-2.5">
                 <i className="fa-solid fa-user-xmark text-sm mt-0.5 text-red-500 flex-shrink-0" />

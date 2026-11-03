@@ -25,6 +25,25 @@ export interface ICompanySocialLinks {
   youtube?: string;
 }
 
+export interface IEmailIntegration {
+  provider: "smtp" | "google_oauth";
+  activeEmail?: string;
+  senderName?: string;
+  googleRefreshToken?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPass?: string;
+  isConfigured?: boolean;
+}
+
+export interface IDatabaseConfig {
+  customMongoUri?: string;
+  isCustom?: boolean;
+  activeClusterName?: string;
+  lastConnectedAt?: Date;
+}
+
 export interface ITenant extends Document {
   name: string;
   slug: string;
@@ -57,6 +76,8 @@ export interface ITenant extends Document {
   isolateHRData?: boolean;
   maxShiftHours?: number;
   targetShiftHours?: number;
+  emailIntegration?: IEmailIntegration;
+  databaseConfig?: IDatabaseConfig;
   createdAt: Date;
 }
 

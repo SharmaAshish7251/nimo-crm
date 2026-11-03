@@ -270,6 +270,7 @@ const navSections: NavSection[] = [
           { id: "set-perms", name: "Permissions", href: "/dashboard/settings?tab=permissions" },
           { id: "set-subscription", name: "Subscription & Plan", href: "/dashboard/settings?tab=subscription" },
           { id: "set-backup", name: "Backup & Recovery", href: "/dashboard/settings?tab=backup" },
+                { id: "set-integrations", name: "Integrations & DB", href: "/dashboard/settings?tab=integrations" },
         ],
       },
     ],

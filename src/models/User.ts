@@ -62,6 +62,11 @@ export interface IUser extends Document {
     receiveBirthdayEmails?: boolean;
   };
   lastLoginIp?: string;
+  googleId?: string;
+  authProvider?: "credentials" | "google";
+  googleAccessToken?: string;
+  googleRefreshToken?: string;
+  googleTokenExpiry?: Date;
   lastLoginDevice?: {
     type?: "Desktop" | "Mobile" | "Tablet" | "Unknown";
     os?: string;
@@ -84,7 +89,12 @@ const UserSchema: Schema = new Schema({
   username: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
   // NOTE: uniqueness is enforced per-tenant via compound index below (not globally unique)
   email: { type: String, required: true, lowercase: true, trim: true },
-  passwordHash: { type: String, required: true },
+  passwordHash: { type: String, default: "" },
+  googleId: { type: String, default: "" },
+  authProvider: { type: String, enum: ["credentials", "google"], default: "credentials" },
+  googleAccessToken: { type: String, default: "" },
+  googleRefreshToken: { type: String, default: "" },
+  googleTokenExpiry: { type: Date },
   role: { type: String, default: "Employee", trim: true },
   tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", required: true },
   dob: { type: Date },
