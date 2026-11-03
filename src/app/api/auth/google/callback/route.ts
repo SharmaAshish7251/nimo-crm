@@ -3,6 +3,8 @@ import { connectToDatabase } from "@/lib/db";
 import { User } from "@/models/User";
 import { Tenant } from "@/models/Tenant";
 import { ActivityLog } from "@/models/ActivityLog";
+import { Notification } from "@/models/Notification";
+import { sendEmail } from "@/lib/mail";
 import { createSession } from "@/lib/session";
 
 interface GoogleTokens {
@@ -113,9 +115,7 @@ export async function GET(request: Request) {
       if (targetUser.status === "Suspended") {
         return NextResponse.redirect(`${appUrl}/login?error=suspended`);
       }
-      if (targetUser.status === "Pending") {
-        return NextResponse.redirect(`${appUrl}/login?pending=true`);
-      }
+      // Note: Pending users are allowed to log in and will see the "Under Approval" holding dashboard
 
       // Update Google profile details & tokens
       targetUser.googleId = profile.sub;
@@ -217,9 +217,71 @@ export async function GET(request: Request) {
         console.warn("Failed to write ActivityLog for Google registration:", logErr);
       }
 
-      // If pending approval, redirect with informational banner
-      if (status === "Pending") {
-        return NextResponse.redirect(`${appUrl}/login?pending=true`);
+      // Notify all Admins and OPS via In-App Notification and Live Email
+      try {
+        const adminUsers = await User.find({
+          tenantId: tenantDoc._id,
+          role: { $in: ["Admin", "OPS"] },
+          status: "Active",
+        });
+
+        if (adminUsers.length > 0) {
+          const notifDocs = adminUsers.map((admin) => ({
+            tenantId: tenantDoc._id,
+            recipientId: admin._id,
+            title: "New Employee Account Pending Approval",
+            message: `${targetUser.name} (${cleanEmail}) registered via Google and is awaiting approval.`,
+            type: "system",
+            linkUrl: "/dashboard/clients?tab=users&filter=Pending",
+            read: false,
+            adminOnly: true,
+          }));
+          await Notification.insertMany(notifDocs);
+
+          for (const admin of adminUsers) {
+            try {
+              await sendEmail({
+                to: admin.email,
+                subject: `[NIMO-CRM] New Employee Approval Request: ${targetUser.name}`,
+                text: `New account awaiting approval: ${targetUser.name} (${cleanEmail}). Please review and approve in OPS Portal > User Accounts -- Pending Employee Approvals.`,
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">New Account Awaiting Approval</h2>
+                    <p style="color: #475569; font-size: 14px;">
+                      A new employee has registered for your workspace <strong>${tenantDoc.name}</strong> via Google and is currently pending approval:
+                    </p>
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                      <p style="margin: 4px 0; font-size: 14px; color: #1e293b;"><strong>Name:</strong> ${targetUser.name}</p>
+                      <p style="margin: 4px 0; font-size: 14px; color: #1e293b;"><strong>Email:</strong> ${cleanEmail}</p>
+                      <p style="margin: 4px 0; font-size: 14px; color: #d97706;"><strong>Status:</strong> Pending Approval</p>
+                      <p style="margin: 4px 0; font-size: 14px; color: #64748b;"><strong>Auth Provider:</strong> Google 1-Click</p>
+                    </div>
+                    <p style="color: #475569; font-size: 14px;">Please sign in to OPS Portal &gt; User Accounts to approve or activate this account.</p>
+                    <div style="margin-top: 24px;">
+                      <a href="${appUrl}/dashboard/clients?tab=users&filter=Pending" style="display: inline-block; padding: 10px 20px; background-color: #00c5a0; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">Review &amp; Approve in Admin Portal</a>
+                    </div>
+                  </div>
+                `,
+                tenantId: tenantDoc._id.toString(),
+              });
+            } catch (mailErr) {
+              console.error("Failed to send approval email to admin:", mailErr);
+            }
+          }
+        }
+
+        // Welcome notification for the newly registered user
+        await Notification.create({
+          tenantId: tenantDoc._id,
+          recipientId: targetUser._id,
+          title: "Welcome to NIMO-CRM",
+          message: "Your Google registration was received. Your account is currently awaiting administrator activation.",
+          type: "system",
+          linkUrl: "/dashboard",
+          read: false,
+        });
+      } catch (notifErr) {
+        console.error("Failed to generate registration notifications:", notifErr);
       }
     }
 
