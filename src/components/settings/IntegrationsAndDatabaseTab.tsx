@@ -287,7 +287,7 @@ export default function IntegrationsAndDatabaseTab() {
               {/* 1-Click Connect with Google */}
               <div className="p-3.5 rounded-xl border border-teal-500/30 bg-teal-500/5 space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <i className="fa-brands fa-google text-red-500 text-sm" />
+                  <GoogleIcon className="w-4 h-4 flex-shrink-0" />
                   <span className="font-bold text-xs text-foreground">Zero-Setup Google Sign-in & Gmail</span>
                 </div>
                 <p className="text-[11.5px] text-muted-foreground leading-relaxed">
@@ -297,7 +297,7 @@ export default function IntegrationsAndDatabaseTab() {
                   href="/api/auth/google?intent=connect_gmail&redirect=/dashboard/settings?tab=integrations"
                   className="inline-flex items-center justify-center gap-2 min-h-[38px] px-4 py-2 rounded-lg bg-white dark:bg-[#1a222d] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#222c3a] text-xs font-semibold transition-all no-underline shadow-2xs cursor-pointer"
                 >
-                  <i className="fa-brands fa-google text-red-500 text-xs" />
+                  <GoogleIcon className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>Connect / Switch Google Account</span>
                 </a>
               </div>

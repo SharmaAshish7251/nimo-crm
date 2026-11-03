@@ -7,6 +7,7 @@ import { loginAction } from "@/app/actions/auth";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import GoogleIcon from "@/components/ui/GoogleIcon";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -45,7 +46,7 @@ function LoginForm() {
             href="/api/auth/google?intent=login"
             className="flex items-center justify-center gap-3 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222d] hover:bg-slate-50 dark:hover:bg-[#222c3a] text-slate-800 dark:text-slate-100 text-sm font-semibold shadow-2xs transition-all no-underline cursor-pointer select-none"
           >
-            <i className="fa-brands fa-google text-red-500 text-base" />
+            <GoogleIcon className="w-5 h-5 flex-shrink-0" />
             <span>Continue with Google</span>
           </a>
 
