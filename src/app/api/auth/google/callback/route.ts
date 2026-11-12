@@ -182,10 +182,11 @@ export async function GET(request: Request) {
         });
       }
 
-      // All Google sign-ins are created as Employee role with Pending status
-      // Admin must approve them from the Users management panel
-      const role = "Employee";
-      const status = "Pending";
+      // The very first user to sign in to a fresh workspace is automatically designated as Admin.
+      // Subsequent Google sign-ins are created as Employee role with Pending status for Admin approval.
+      const existingUserCount = await User.countDocuments({ tenantId: tenantDoc._id });
+      const role = existingUserCount === 0 ? "Admin" : "Employee";
+      const status = existingUserCount === 0 ? "Active" : "Pending";
 
       targetUser = await User.create({
         name: profile.name || "Google User",
