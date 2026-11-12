@@ -17,6 +17,7 @@ import { useTabPersistence } from "@/hooks/useTabPersistence";
 import { RoleDataControlTab } from "@/components/settings/RoleDataControlTab";
 import DataBackupRestoreTab from "@/components/settings/DataBackupRestoreTab";
 import IntegrationsAndDatabaseTab from "@/components/settings/IntegrationsAndDatabaseTab";
+import { SeedDemoDataTab } from "@/components/settings/SeedDemoDataTab";
 import { AccessRestricted } from "@/components/ui/AccessRestricted";
 import { removeSignatureBackground } from "@/lib/signature";
 
@@ -26,10 +27,10 @@ function SettingsPageContent() {
   const { user, loading: authLoading, refreshUser } = useAuth();
   const { can, isAdmin, isOPS, isHR, canAccessModule, loading: permLoading } = usePermissions();
 
-  const [activeTab, setActiveTab] = useTabPersistence<"profile" | "security" | "subscription" | "permissions" | "organization" | "backup" | "integrations">(
+  const [activeTab, setActiveTab] = useTabPersistence<"profile" | "security" | "subscription" | "permissions" | "organization" | "backup" | "integrations" | "seed">(
     "settings_active_tab_v3",
     "profile",
-    ["profile", "security", "subscription", "permissions", "organization", "backup", "integrations"]
+    ["profile", "security", "subscription", "permissions", "organization", "backup", "integrations", "seed"]
   );
 
   // Sync tab with URL searchParams and handle redirection for moved tabs
@@ -56,7 +57,7 @@ function SettingsPageContent() {
       return;
     }
 
-    if (["profile", "security", "subscription", "permissions", "organization", "backup", "integrations"].includes(tabParam)) {
+    if (["profile", "security", "subscription", "permissions", "organization", "backup", "integrations", "seed"].includes(tabParam)) {
       setActiveTab(tabParam as any);
     }
   }, [searchParams, router, setActiveTab]);
@@ -64,7 +65,7 @@ function SettingsPageContent() {
   // Sync tab with custom event from banners
   useEffect(() => {
     const handleTabSwitch = (e: any) => {
-      if (e.detail && e.detail !== activeTab && ["profile", "security", "invoice", "subscription", "permissions", "organization", "backup"].includes(e.detail)) {
+      if (e.detail && e.detail !== activeTab && ["profile", "security", "invoice", "subscription", "permissions", "organization", "backup", "integrations", "seed"].includes(e.detail)) {
         setActiveTab(e.detail);
       }
     };
@@ -1153,6 +1154,20 @@ function SettingsPageContent() {
             )}
           >
             <i className="fa-solid fa-plug text-cyan-500 text-sm" /> Integrations &amp; DB
+          </button>
+        )}
+
+        {(isAdmin || isOPS) && (
+          <button
+            onClick={() => setActiveTab("seed")}
+            className={cn(
+              "px-3.5 py-2.5 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 sm:shrink touch-target",
+              activeTab === "seed"
+                ? "bg-background text-primary shadow-xs font-bold border border-border"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            <i className="fa-solid fa-flask-vial text-amber-500 text-sm" /> Seed &amp; Demo Data
           </button>
         )}
       </div>
@@ -3696,6 +3711,11 @@ function SettingsPageContent() {
       {/* TAB 6: INTEGRATIONS & CLOUD DATABASE SWITCHER */}
       {activeTab === "integrations" && (isAdmin || isOPS) && (
         <IntegrationsAndDatabaseTab />
+      )}
+
+      {/* TAB 7: SEED & DEMO DATA GENERATOR */}
+      {activeTab === "seed" && (isAdmin || isOPS) && (
+        <SeedDemoDataTab />
       )}
 
       {/* Remove Profile Photo Confirmation Modal */}
