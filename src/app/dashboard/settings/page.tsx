@@ -1167,7 +1167,7 @@ function SettingsPageContent() {
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
             )}
           >
-            <i className="fa-solid fa-flask-vial text-amber-500 text-sm" /> Seed &amp; Demo Data
+            <i className="fa-solid fa-flask-vial text-amber-500 text-sm" /> Seed &amp; Delete Dummy Data
           </button>
         )}
       </div>

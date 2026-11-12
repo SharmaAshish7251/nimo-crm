@@ -61,12 +61,13 @@ The seeder will generate realistic mock documents pinned to the active `tenantId
     - Records `WORKSPACE_DELETE_DUMMY_DATA` audit trail in `ActivityLog`.
 - **Frontend UI (`src/components/settings/SeedDemoDataTab.tsx`)**:
   - Add tab button in `src/app/dashboard/settings/page.tsx`:
-    - Label: `Seed & Demo Data`
+    - Label: `Seed & Delete Dummy Data`
     - Icon: `fa-solid fa-flask-vial text-amber-500`
     - Deep-link: `?tab=seed`
   - Summary Cards showing live counts per domain with FontAwesome 6 icons.
-  - Primary CTA: **"Seed All CRM Features"** (`fa-solid fa-wand-magic-sparkles`).
-  - Secondary Destructive CTA: **"Purge / Delete Demo Data"** (`fa-solid fa-trash-can text-red-500`).
+  - Primary CTA: **"Seed Dummy Data"** (`fa-solid fa-wand-magic-sparkles`).
+  - Secondary Destructive CTA: **"Delete Dummy Data"** (`fa-solid fa-trash-can text-white bg-rose-600`).
+  - Dedicated Full-Width **"Danger Zone: Delete All Workspace Dummy Data"** Card.
   - Safe Confirmation Modals:
     - Seed modal explaining non-destructive append.
     - Purge modal explaining data wipe with safety guarantee that the Admin user account is preserved.

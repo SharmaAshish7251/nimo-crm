@@ -214,12 +214,12 @@ export function SeedDemoDataTab() {
                 {seeding ? (
                   <>
                     <i className="fa-solid fa-spinner fa-spin text-xs" />
-                    Populating CRM Features...
+                    Populating Dummy Data...
                   </>
                 ) : (
                   <>
                     <i className="fa-solid fa-wand-magic-sparkles text-xs" />
-                    Seed All CRM Features
+                    Seed Dummy Data
                   </>
                 )}
               </Button>
@@ -227,18 +227,18 @@ export function SeedDemoDataTab() {
               <Button
                 onClick={() => setShowPurgeConfirmModal(true)}
                 disabled={seeding || purging}
-                variant="outline"
-                className="gap-2 font-bold min-h-[40px] px-4 shadow-sm cursor-pointer border-rose-500/40 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-500/20 justify-center"
+                color="destructive"
+                className="gap-2 font-bold min-h-[40px] px-4 shadow-sm cursor-pointer justify-center bg-rose-600 hover:bg-rose-700 text-white"
               >
                 {purging ? (
                   <>
-                    <i className="fa-solid fa-spinner fa-spin text-xs text-rose-500" />
-                    Purging Data...
+                    <i className="fa-solid fa-spinner fa-spin text-xs text-white" />
+                    Deleting Dummy Data...
                   </>
                 ) : (
                   <>
-                    <i className="fa-solid fa-trash-can text-xs text-rose-500" />
-                    Delete Demo Data
+                    <i className="fa-solid fa-trash-can text-xs text-white" />
+                    Delete Dummy Data
                   </>
                 )}
               </Button>
@@ -253,6 +253,47 @@ export function SeedDemoDataTab() {
               <span className="font-semibold text-foreground">Safe &amp; Non-Destructive:</span> This generator safely injects demo records pinned to your company workspace. It will <span className="font-semibold text-foreground">never</span> overwrite, delete, or modify your current Admin account or active session credentials.
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone: Dedicated Delete Dummy Data Card */}
+      <Card className="border-2 border-rose-500/40 bg-gradient-to-br from-rose-500/10 via-card to-card shadow-xs">
+        <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-500 flex items-center justify-center shrink-0 border border-rose-500/30">
+                <i className="fa-solid fa-trash-can text-sm" />
+              </div>
+              <span className="font-bold text-sm sm:text-base text-foreground">
+                Delete All Workspace Dummy Data
+              </span>
+              <Badge color="destructive" className="text-[10px] font-bold">
+                PURGE OPTION
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+              Permanently wipe all generated mock records across all 10+ CRM features (Projects, Tasks, Attendance, Leads, Deals, Invoices, IT Assets, Comms &amp; Wikis). Your Admin user credentials and workspace setup will remain 100% active and safe.
+            </p>
+          </div>
+
+          <Button
+            onClick={() => setShowPurgeConfirmModal(true)}
+            disabled={seeding || purging}
+            color="destructive"
+            className="gap-2 font-bold min-h-[42px] px-5 shadow-sm cursor-pointer shrink-0 bg-rose-600 hover:bg-rose-700 text-white justify-center"
+          >
+            {purging ? (
+              <>
+                <i className="fa-solid fa-spinner fa-spin text-xs text-white" />
+                Deleting Dummy Data...
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-trash-can text-xs text-white" />
+                Delete Dummy Data
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
@@ -450,7 +491,7 @@ export function SeedDemoDataTab() {
                 <i className="fa-solid fa-triangle-exclamation text-lg" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-foreground">Purge All Workspace Demo Data?</h3>
+                <h3 className="text-base font-bold text-foreground">Delete All Workspace Dummy Data?</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   This action will permanently delete all generated dummy records across all functional CRM features (Users, Projects, Sprints, Tasks, Attendance, Leads, Deals, Invoices, IT Assets, Comms &amp; Wikis).
                 </p>
@@ -492,7 +533,7 @@ export function SeedDemoDataTab() {
                 ) : (
                   <>
                     <i className="fa-solid fa-trash-can text-xs" />
-                    Yes, Delete Demo Data
+                    Yes, Delete Dummy Data
                   </>
                 )}
               </Button>
