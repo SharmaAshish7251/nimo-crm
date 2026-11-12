@@ -454,7 +454,7 @@ export default function IntegrationsAndDatabaseTab() {
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground font-medium">Storage Mode:</span>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge color="secondary" className="text-[10px]">
                     {data?.database.isCustom ? "Dedicated Private Cluster" : "Default Shared Cloud Cluster"}
                   </Badge>
                 </div>
@@ -536,7 +536,7 @@ export default function IntegrationsAndDatabaseTab() {
                   </div>
                   <Button
                     onClick={() => handleSaveDatabase(true)}
-                    variant="destructive"
+                    color="destructive"
                     size="sm"
                     className="text-xs h-8 min-h-[36px] cursor-pointer"
                   >

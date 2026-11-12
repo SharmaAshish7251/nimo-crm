@@ -18,3 +18,4 @@
 
 3. **Feature Highlighting & Mobile Responsiveness**:
    - Ensure all modal dialogs and toasts comply with FontAwesome 6 icons and 100% mobile responsiveness.
+

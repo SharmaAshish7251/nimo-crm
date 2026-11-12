@@ -851,7 +851,7 @@ export default function DataBackupRestoreTab() {
                     <Button
                       onClick={() => setShowConfirmModal(true)}
                       disabled={selectedRestoreCollections.length === 0}
-                      variant={restoreMode === "overwrite" ? "destructive" : "default"}
+                      color={restoreMode === "overwrite" ? "destructive" : "primary"}
                       className="gap-2 font-semibold min-h-[40px] px-6 cursor-pointer"
                     >
                       <i className="fa-solid fa-rotate-left text-xs" />
@@ -1199,7 +1199,7 @@ export default function DataBackupRestoreTab() {
                 Cancel
               </Button>
               <Button
-                variant={restoreMode === "overwrite" ? "destructive" : "default"}
+                color={restoreMode === "overwrite" ? "destructive" : "primary"}
                 size="sm"
                 onClick={handleExecuteRestore}
                 disabled={

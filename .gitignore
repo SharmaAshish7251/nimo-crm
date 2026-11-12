@@ -27,3 +27,7 @@ ios/App/Pods/
 ios/App/.symlinks/
 *.apk
 *.aab
+nimo_backup_nex-ace_2026-11-03T11-55-52-453Z.nimo.json
+plans/email_delivery_and_backup_restore_fixes_plan.md
+.gitignore
+plans/email_delivery_and_backup_restore_fixes_plan.md
