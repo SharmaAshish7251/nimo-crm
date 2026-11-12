@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTenantSession, isAuthError } from "@/lib/auth-guard";
 import { connectToDatabase } from "@/lib/db";
-import { seedWorkspaceDummyData } from "@/lib/dummyDataSeeder";
+import { seedWorkspaceDummyData, deleteWorkspaceDummyData } from "@/lib/dummyDataSeeder";
 import { Department } from "@/models/Department";
 import { User } from "@/models/User";
 import { Project } from "@/models/Project";
@@ -85,3 +85,24 @@ export async function POST() {
     return NextResponse.json({ error: err.message || "Failed to populate dummy data" }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    const authResult = await requireTenantSession(["Admin"]);
+    if (isAuthError(authResult)) return authResult;
+    const { tenantObjectId, session } = authResult;
+
+    const summary = await deleteWorkspaceDummyData(tenantObjectId, session);
+
+    return NextResponse.json({
+      success: true,
+      summary,
+      message: `Successfully purged ${summary.totalDeleted} dummy demo records across all CRM modules. Admin account and tenant configuration preserved!`,
+    });
+  } catch (err: any) {
+    console.error("Workspace dummy data deletion error:", err);
+    return NextResponse.json({ error: err.message || "Failed to delete dummy data" }, { status: 500 });
+  }
+}
+
+

@@ -52,19 +52,25 @@ The seeder will generate realistic mock documents pinned to the active `tenantId
   - **Security**: Strictly restricted to authenticated users with `Admin` role (`requireTenantSession(["Admin"])`).
   - **Safety**: Pins all created records directly to `tenantObjectId`.
   - **Preservation**: NEVER overwrites, modifies, or deletes the active Admin's user record or session.
-  - **Modes**:
-    - `all`: Seeds all domains simultaneously.
-    - `selective`: Accepts array of specific domains to seed.
-- **Frontend UI**:
+  - **Validation Fidelity**: Accurately matches all 20+ Mongoose models' schemas and required fields (e.g. `TimeEntry`, `SalesDeal`, `Proposal`, `Referral`, `Holiday`, `ChecklistPreset`, `SalarySlip`, `FinanceExpense`, `ITAccessEntry`, `ITSubscription`, `ITDriveLink`, `Kudos`, `BirthdayWish`, `OneOnOneMeeting`, `PulseSurvey`).
+- **Purge Endpoint**: `DELETE /api/settings/seed-data`
+  - **Security**: Restricted to `Admin` only.
+  - **Safety Protocol**:
+    - Deletes generated dummy data across all CRM modules matching `tenantId`.
+    - **CRITICAL**: Strictly protects the active Admin user account (`_id: { $ne: adminObjectId }`) and the `Tenant` document.
+    - Records `WORKSPACE_DELETE_DUMMY_DATA` audit trail in `ActivityLog`.
+- **Frontend UI (`src/components/settings/SeedDemoDataTab.tsx`)**:
   - Add tab button in `src/app/dashboard/settings/page.tsx`:
     - Label: `Seed & Demo Data`
     - Icon: `fa-solid fa-flask-vial text-amber-500`
     - Deep-link: `?tab=seed`
-  - Component: `src/components/settings/SeedDemoDataTab.tsx`
-    - Summary Cards showing live counts per domain.
-    - 1-Click "Seed All CRM Features" button.
-    - Individual Domain Seed cards with feature toggles.
-    - Warning banner confirming non-destructive append mode.
-    - Confirmation dialog before execution.
+  - Summary Cards showing live counts per domain with FontAwesome 6 icons.
+  - Primary CTA: **"Seed All CRM Features"** (`fa-solid fa-wand-magic-sparkles`).
+  - Secondary Destructive CTA: **"Purge / Delete Demo Data"** (`fa-solid fa-trash-can text-red-500`).
+  - Safe Confirmation Modals:
+    - Seed modal explaining non-destructive append.
+    - Purge modal explaining data wipe with safety guarantee that the Admin user account is preserved.
+  - 100% Mobile Responsive design (`max-h-[90vh]`, touch targets >= 38px, safe scrollable containers).
 - **Feature Highlights Registry**:
   - Registered in `src/lib/featureHighlights.ts` for automatic spotlight on login.
+

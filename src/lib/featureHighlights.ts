@@ -30,6 +30,50 @@ export interface FeatureRelease {
 
 export const FEATURE_RELEASES: FeatureRelease[] = [
   {
+    id: "release-2026-11-seed-demo-data",
+    version: "v3.4",
+    releaseDate: "November 2026",
+    badge: "Admin Sandbox Suite",
+    title: "1-Click Seed & Delete Dummy Data Suite",
+    subtitle: "Populate a fresh or blank database with comprehensive, realistic dummy records across all 10+ functional CRM features in seconds, or cleanly purge demo data with zero risk to your Admin account.",
+    features: [
+      {
+        id: "seed-crm-dummy-data",
+        title: "Comprehensive 10+ Module Dummy Data Generator",
+        description: "Populate your CRM workspace with realistic mock documents: Projects, Kanban Tasks, Sprints, Clock-in Attendance, Timesheets, Leads, Sales Deals, Proposals, Leave Requests, Holidays, Checklists, Salary Slips, Invoices, Expenses, IT Assets, Chat Channels, Kudos, and SOP Wikis.",
+        icon: "fa-solid fa-wand-magic-sparkles text-amber-500",
+        badge: "NEW",
+        tag: "Admin Tooling",
+        category: "Operations & Shifts",
+        highlights: [
+          "Covers all 10+ functional CRM modules in a single click",
+          "Generates 85+ realistic interconnected records pinned to your workspace",
+          "Safe append mode that strictly preserves Admin credentials and session",
+          "Live module count cards and confirmation dialogs",
+        ],
+        href: "/dashboard/settings?tab=seed",
+        applicableRoles: ["Admin"],
+      },
+      {
+        id: "delete-crm-dummy-data",
+        title: "Clean Purge & Delete Demo Data Option",
+        description: "Instantly clean up and wipe all generated dummy data across all CRM modules when transitioning to real client operations, while keeping your Admin account, password, and workspace settings 100% intact.",
+        icon: "fa-solid fa-trash-can text-rose-500",
+        badge: "NEW",
+        tag: "Admin Tooling",
+        category: "Security",
+        highlights: [
+          "Wipes mock users, projects, tasks, attendance, deals, and invoices",
+          "Guaranteed safety: Active Admin user and Tenant document are never deleted",
+          "Immutable ActivityLog audit trail for every purge action",
+          "Allows re-seeding demo data at any time",
+        ],
+        href: "/dashboard/settings?tab=seed",
+        applicableRoles: ["Admin"],
+      },
+    ],
+  },
+  {
     id: "release-2026-11-google-oauth-integrations",
     version: "v3.2",
     releaseDate: "November 2026",

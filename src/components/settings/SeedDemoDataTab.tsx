@@ -22,8 +22,11 @@ export function SeedDemoDataTab() {
   const [counts, setCounts] = useState<SeedCounts | null>(null);
   const [loadingCounts, setLoadingCounts] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [purging, setPurging] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showPurgeConfirmModal, setShowPurgeConfirmModal] = useState(false);
   const [seedResult, setSeedResult] = useState<any | null>(null);
+  const [purgeResult, setPurgeResult] = useState<any | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -54,6 +57,7 @@ export function SeedDemoDataTab() {
     try {
       setSeeding(true);
       setShowConfirmModal(false);
+      setPurgeResult(null);
       const res = await fetch("/api/settings/seed-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -71,6 +75,31 @@ export function SeedDemoDataTab() {
       showToast(err.message || "Network error while seeding data.", "error");
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleExecutePurge = async () => {
+    try {
+      setPurging(true);
+      setShowPurgeConfirmModal(false);
+      setSeedResult(null);
+      const res = await fetch("/api/settings/seed-data", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPurgeResult(data.summary);
+        showToast(data.message || "Dummy demo data deleted successfully!", "success");
+        await fetchCounts();
+      } else {
+        showToast(data.error || "Failed to delete dummy data.", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Network error while purging data.", "error");
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -175,24 +204,45 @@ export function SeedDemoDataTab() {
               </CardDescription>
             </div>
 
-            <Button
-              onClick={() => setShowConfirmModal(true)}
-              disabled={seeding}
-              color="primary"
-              className="gap-2 font-bold min-h-[40px] px-5 shadow-sm shrink-0 cursor-pointer"
-            >
-              {seeding ? (
-                <>
-                  <i className="fa-solid fa-spinner fa-spin text-xs" />
-                  Populating CRM Features...
-                </>
-              ) : (
-                <>
-                  <i className="fa-solid fa-wand-magic-sparkles text-xs" />
-                  Seed All CRM Features
-                </>
-              )}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center shrink-0">
+              <Button
+                onClick={() => setShowConfirmModal(true)}
+                disabled={seeding || purging}
+                color="primary"
+                className="gap-2 font-bold min-h-[40px] px-4 shadow-sm cursor-pointer justify-center"
+              >
+                {seeding ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin text-xs" />
+                    Populating CRM Features...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-wand-magic-sparkles text-xs" />
+                    Seed All CRM Features
+                  </>
+                )}
+              </Button>
+
+              <Button
+                onClick={() => setShowPurgeConfirmModal(true)}
+                disabled={seeding || purging}
+                variant="outline"
+                className="gap-2 font-bold min-h-[40px] px-4 shadow-sm cursor-pointer border-rose-500/40 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-500/20 justify-center"
+              >
+                {purging ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin text-xs text-rose-500" />
+                    Purging Data...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-trash-can text-xs text-rose-500" />
+                    Delete Demo Data
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -238,6 +288,44 @@ export function SeedDemoDataTab() {
               <div className="bg-background/80 p-2.5 rounded-lg border border-border">
                 <span className="text-muted-foreground block text-[11px]">IT Devices</span>
                 <span className="font-bold text-foreground text-sm">+{seedResult.devices}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Purge Results Banner */}
+      {purgeResult && (
+        <Card className="border border-rose-500/40 bg-rose-500/10 shadow-xs animate-in fade-in">
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
+              <i className="fa-solid fa-trash-can text-base" />
+              <span>Workspace Demo Data Purged — {purgeResult.totalDeleted} Records Cleared</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 text-xs">
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">Users</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.users}</span>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">Projects</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.projects}</span>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">Tasks</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.tasks}</span>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">Leads &amp; Deals</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.leads + purgeResult.deals}</span>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">Invoices</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.invoices}</span>
+              </div>
+              <div className="bg-background/80 p-2.5 rounded-lg border border-border">
+                <span className="text-muted-foreground block text-[11px]">IT Devices</span>
+                <span className="font-bold text-foreground text-sm">-{purgeResult.devices}</span>
               </div>
             </div>
           </CardContent>
@@ -349,6 +437,70 @@ export function SeedDemoDataTab() {
           </div>
         </div>
       )}
+
+      {/* Purge / Delete Confirmation Modal */}
+      {showPurgeConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+          <div
+            className="w-full max-w-md bg-card border border-rose-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 border border-rose-500/20">
+                <i className="fa-solid fa-triangle-exclamation text-lg" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-foreground">Purge All Workspace Demo Data?</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This action will permanently delete all generated dummy records across all functional CRM features (Users, Projects, Sprints, Tasks, Attendance, Leads, Deals, Invoices, IT Assets, Comms &amp; Wikis).
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20 text-xs text-muted-foreground space-y-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 font-semibold text-rose-600 dark:text-rose-400">
+                <i className="fa-solid fa-shield-halved text-[11px]" />
+                Safety Guarantee:
+              </div>
+              <p>• Your Admin account (<span className="font-semibold text-foreground">email, password &amp; role</span>) is strictly preserved.</p>
+              <p>• Your Tenant workspace configuration remains active.</p>
+              <p>• You can re-populate fresh demo data at any time using the seed generator.</p>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-border shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPurgeConfirmModal(false)}
+                disabled={purging}
+                className="cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                color="destructive"
+                size="sm"
+                onClick={handleExecutePurge}
+                disabled={purging}
+                className="gap-2 font-bold cursor-pointer bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {purging ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin text-xs" />
+                    Purging Data...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-trash-can text-xs" />
+                    Yes, Delete Demo Data
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

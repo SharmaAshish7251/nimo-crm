@@ -525,17 +525,19 @@ export async function seedWorkspaceDummyData(
       const existingTime = await TimeEntry.findOne({
         tenantId: tenantObjectId,
         userId: uid,
-        projectId: createdProjectIds[0],
+        project: "Enterprise Cloud Infrastructure Migration",
       });
       if (!existingTime) {
         await TimeEntry.create({
           tenantId: tenantObjectId,
           userId: uid,
-          projectId: createdProjectIds[0],
-          date: new Date(),
+          project: "Enterprise Cloud Infrastructure Migration",
+          taskName: "Core Architecture & Infrastructure Development",
           hours: 6.5,
-          description: "Core module development, code review, and unit testing.",
-          billable: true,
+          date: new Date(),
+          isBillable: true,
+          status: "Approved",
+          comment: "Core module development, code review, and unit testing.",
         });
         timeCount++;
       }
@@ -586,7 +588,7 @@ export async function seedWorkspaceDummyData(
       value: 85000,
       currency: "USD",
       source: "Website Lead Form",
-      owner: session.userName,
+      owner: session.userName || "Admin",
       notes: "Annual enterprise retainer contract currently under legal review.",
       tenantId: tenantObjectId,
       createdBy: adminObjectId,
@@ -605,49 +607,82 @@ export async function seedWorkspaceDummyData(
 
   const sampleDeals = [
     {
-      title: "OmniPay FinTech Architecture Migration",
-      company: "OmniPay Technologies",
-      contactName: "Richard Thorne",
-      contactEmail: "richard@omnipay.io",
-      value: 45000,
+      dealName: "OmniPay FinTech Architecture Migration",
+      clientAccount: "OmniPay Technologies",
+      dealValue: 45000,
       currency: "USD",
-      stage: "Discovery",
+      stage: "Discovery" as const,
       probability: 60,
-      expectedCloseDate: new Date(Date.now() + 25 * 86400000),
-      assignedTo: adminObjectId,
+      expectedClose: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 10),
+      owner: session.userName || "Admin",
+      venture: "Ace Consultancys",
+      notes: "Requires HIPAA compliant document management, encrypted patient audit trails, and 99.99% uptime.",
       tenantId: tenantObjectId,
+      createdBy: adminObjectId,
+      stageHistory: [
+        {
+          fromStage: "Prospecting",
+          toStage: "Discovery",
+          changedBy: adminObjectId,
+          changedByName: session.userName || "Admin",
+          notes: "Initial discovery call completed.",
+          timestamp: new Date(),
+        },
+      ],
     },
     {
-      title: "Nexus Systems Annual Enterprise Retainer",
-      company: "Nexus Cloud Systems",
-      contactName: "Claire Underwood",
-      contactEmail: "claire@nexuscloud.io",
-      value: 95000,
+      dealName: "Nexus Systems Annual Enterprise Retainer",
+      clientAccount: "Nexus Cloud Systems",
+      dealValue: 95000,
       currency: "USD",
-      stage: "Closed Won",
+      stage: "Closed Won" as const,
       probability: 100,
-      expectedCloseDate: new Date(Date.now() - 5 * 86400000),
-      assignedTo: adminObjectId,
+      expectedClose: new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10),
+      owner: session.userName || "Admin",
+      venture: "Ace Consultancys",
+      notes: "Annual enterprise retainer contract signed and executed.",
       tenantId: tenantObjectId,
+      createdBy: adminObjectId,
+      stageHistory: [
+        {
+          fromStage: "Negotiation",
+          toStage: "Closed Won",
+          changedBy: adminObjectId,
+          changedByName: session.userName || "Admin",
+          notes: "Executive sign-off received.",
+          timestamp: new Date(),
+        },
+      ],
     },
     {
-      title: "Vanguard Telematics Engine Upgrade",
-      company: "Vanguard Global",
-      contactName: "Marcus Sterling",
-      contactEmail: "marcus@vanguard.com",
-      value: 38000,
+      dealName: "Vanguard Telematics Engine Upgrade",
+      clientAccount: "Vanguard Global",
+      dealValue: 38000,
       currency: "USD",
-      stage: "Proposal Sent",
+      stage: "Proposal Sent" as const,
       probability: 80,
-      expectedCloseDate: new Date(Date.now() + 15 * 86400000),
-      assignedTo: createdUserIds[4] || adminObjectId,
+      expectedClose: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+      owner: "Aisha Al-Mansoor",
+      venture: "Ace Consultancys",
+      notes: "Proposal submitted for review.",
       tenantId: tenantObjectId,
+      createdBy: adminObjectId,
+      stageHistory: [
+        {
+          fromStage: "Discovery",
+          toStage: "Proposal Sent",
+          changedBy: adminObjectId,
+          changedByName: session.userName || "Admin",
+          notes: "Formal proposal sent to Marcus Sterling.",
+          timestamp: new Date(),
+        },
+      ],
     },
   ];
 
   let dealCount = 0;
   for (const d of sampleDeals) {
-    const existing = await SalesDeal.findOne({ tenantId: tenantObjectId, title: d.title });
+    const existing = await SalesDeal.findOne({ tenantId: tenantObjectId, dealName: d.dealName });
     if (!existing) {
       await SalesDeal.create(d);
       dealCount++;
@@ -657,17 +692,31 @@ export async function seedWorkspaceDummyData(
 
   // Proposals & Referrals
   let propCount = 0;
-  const existingProp = await Proposal.findOne({ tenantId: tenantObjectId, title: "OmniPay Modernization Proposal" });
+  const existingProp = await Proposal.findOne({ tenantId: tenantObjectId, proposalCode: "PROP-2026-001" });
   if (!existingProp) {
     await Proposal.create({
-      title: "OmniPay Modernization Proposal",
-      clientName: "OmniPay Technologies",
-      clientEmail: "richard@omnipay.io",
-      amount: 45000,
-      currency: "USD",
-      status: "Sent",
-      validUntil: new Date(Date.now() + 30 * 86400000),
       tenantId: tenantObjectId,
+      proposalCode: "PROP-2026-001",
+      subject: "OmniPay Modernization Proposal",
+      clientName: "Richard Thorne",
+      clientEmail: "richard@omnipay.io",
+      clientCompany: "OmniPay Technologies",
+      items: [
+        {
+          description: "Cloud Architecture Modernization & High-Throughput Database Tuning",
+          quantity: 1,
+          unitPrice: 45000,
+          amount: 45000,
+        },
+      ],
+      subtotal: 45000,
+      taxRate: 0,
+      taxAmount: 0,
+      totalValue: 45000,
+      currency: "USD",
+      issueDate: new Date(),
+      openTill: new Date(Date.now() + 30 * 86400000),
+      status: "Sent",
       createdBy: adminObjectId,
     });
     propCount++;
@@ -678,15 +727,19 @@ export async function seedWorkspaceDummyData(
   const existingRef = await Referral.findOne({ tenantId: tenantObjectId, candidateName: "Alexander Hayes" });
   if (!existingRef) {
     await Referral.create({
+      tenantId: tenantObjectId,
       candidateName: "Alexander Hayes",
       candidateEmail: "alex.hayes@example.com",
-      candidatePhone: "+1-555-0811",
+      phone: "+1-555-0811",
       position: "Senior Full Stack Engineer",
-      relationship: "Former Colleague",
-      status: "Interviewing",
-      referrerId: createdUserIds[1] || adminObjectId,
+      department: "Engineering",
       referrerName: "Sarah Jenkins",
-      tenantId: tenantObjectId,
+      referrerId: createdUserIds[1] || adminObjectId,
+      referralCode: "REF-2026-01",
+      status: "Interviewing",
+      rewardAmount: 1500,
+      payoutStatus: "Pending",
+      notes: "Former colleague with strong Distributed Systems and Next.js experience.",
     });
     refCount++;
   }
@@ -737,17 +790,17 @@ export async function seedWorkspaceDummyData(
 
   // Company Holidays
   const holidayDefs = [
-    { name: "New Year's Day", date: new Date(now.getFullYear(), 0, 1), type: "Mandatory" },
-    { name: "Memorial Day", date: new Date(now.getFullYear(), 4, 25), type: "Mandatory" },
-    { name: "Independence Day", date: new Date(now.getFullYear(), 6, 4), type: "Mandatory" },
-    { name: "Labor Day", date: new Date(now.getFullYear(), 8, 7), type: "Mandatory" },
-    { name: "Thanksgiving Day", date: new Date(now.getFullYear(), 10, 26), type: "Mandatory" },
-    { name: "Christmas Day", date: new Date(now.getFullYear(), 11, 25), type: "Mandatory" },
+    { title: "New Year's Day", date: new Date(now.getFullYear(), 0, 1), year: now.getFullYear(), month: 1, type: "Mandatory" as const },
+    { title: "Memorial Day", date: new Date(now.getFullYear(), 4, 25), year: now.getFullYear(), month: 5, type: "Mandatory" as const },
+    { title: "Independence Day", date: new Date(now.getFullYear(), 6, 4), year: now.getFullYear(), month: 7, type: "Mandatory" as const },
+    { title: "Labor Day", date: new Date(now.getFullYear(), 8, 7), year: now.getFullYear(), month: 9, type: "Mandatory" as const },
+    { title: "Thanksgiving Day", date: new Date(now.getFullYear(), 10, 26), year: now.getFullYear(), month: 11, type: "Mandatory" as const },
+    { title: "Christmas Day", date: new Date(now.getFullYear(), 11, 25), year: now.getFullYear(), month: 12, type: "Mandatory" as const },
   ];
 
   let holCount = 0;
   for (const h of holidayDefs) {
-    const existing = await Holiday.findOne({ tenantId: tenantObjectId, name: h.name });
+    const existing = await Holiday.findOne({ tenantId: tenantObjectId, title: h.title, year: h.year });
     if (!existing) {
       await Holiday.create({ ...h, tenantId: tenantObjectId });
       holCount++;
@@ -757,19 +810,24 @@ export async function seedWorkspaceDummyData(
 
   // Checklist Presets
   let clCount = 0;
-  const existingCp = await ChecklistPreset.findOne({ tenantId: tenantObjectId, title: "Standard Employee Onboarding Checklist" });
+  const existingCp = await ChecklistPreset.findOne({ tenantId: tenantObjectId, name: "Standard Employee Onboarding Checklist" });
   if (!existingCp) {
     await ChecklistPreset.create({
       tenantId: tenantObjectId,
-      title: "Standard Employee Onboarding Checklist",
-      category: "Onboarding",
+      name: "Standard Employee Onboarding Checklist",
+      description: "Standard checklist for newly hired permanent full-time employees.",
+      targetEmploymentType: "Permanent",
       items: [
-        { label: "Sign Employment Agreement & NDA", mandatory: true },
-        { label: "Configure Google Workspace & Slack Account", mandatory: true },
-        { label: "Provision Hardware Laptop & Security Tokens", mandatory: true },
-        { label: "Complete First-Week 1:1 Introduction Meeting", mandatory: false },
+        { id: "chk-1", title: "Sign Employment Agreement & NDA", category: "NDA", required: true },
+        { id: "chk-2", title: "Configure Google Workspace & Slack Account", category: "Access", required: true },
+        { id: "chk-3", title: "Provision Hardware Laptop & Security Tokens", category: "IT Asset", required: true },
+        { id: "chk-4", title: "Complete First-Week 1:1 Introduction Meeting", category: "Other", required: false },
       ],
-      createdBy: adminObjectId,
+      isSystemDefault: true,
+      createdBy: {
+        userId: adminObjectId,
+        userName: session.userName || "Admin",
+      },
     });
     clCount++;
   }
@@ -777,22 +835,43 @@ export async function seedWorkspaceDummyData(
 
   // Salary Slips
   let ssCount = 0;
+  const mNum = now.getMonth() + 1;
+  const yNum = now.getFullYear();
+  const payPeriodStr = `${now.toLocaleString("default", { month: "short" })} ${yNum}`;
+
   for (let i = 1; i < Math.min(4, createdUserIds.length); i++) {
     const uid = createdUserIds[i];
-    const existing = await SalarySlip.findOne({ tenantId: tenantObjectId, userId: uid });
+    const existing = await SalarySlip.findOne({ tenantId: tenantObjectId, userId: uid, month: mNum, year: yNum });
     if (!existing) {
       await SalarySlip.create({
         tenantId: tenantObjectId,
         userId: uid,
-        userName: sampleUsers[i - 1]?.name || "Employee",
-        month: now.toLocaleString("default", { month: "long" }),
-        year: now.getFullYear(),
-        basicSalary: 6500,
-        allowances: 1200,
-        deductions: 450,
-        netSalary: 7250,
+        month: mNum,
+        year: yNum,
+        payPeriod: payPeriodStr,
+        employmentType: "Permanent",
+        designation: (sampleUsers[i - 1] as any)?.role || "Staff Engineer",
+        department: sampleUsers[i - 1]?.department || "Engineering",
+        totalDays: 30,
+        workingDays: 22,
+        presentDays: 22,
+        paidLeaveDays: 0,
+        unpaidLeaveDays: 0,
+        overtimeHours: 0,
+        baseSalary: 6500,
+        basicPay: 5000,
+        hra: 1000,
+        specialAllowance: 500,
+        grossEarnings: 6500,
+        lossOfPayDeduction: 0,
+        taxDeduction: 600,
+        otherDeductions: 150,
+        totalDeductions: 750,
+        netPayable: 5750,
         paymentStatus: "Paid",
         disbursedAt: new Date(Date.now() - 5 * 86400000),
+        disbursedBy: adminObjectId,
+        transactionReference: `TXN-SAL-${yNum}${mNum < 10 ? "0" + mNum : mNum}-00${i}`,
       });
       ssCount++;
     }
@@ -848,26 +927,32 @@ export async function seedWorkspaceDummyData(
   // Finance Expenses
   const sampleExpenses = [
     {
+      tenantId: tenantObjectId,
+      createdBy: adminObjectId,
       title: "AWS Cloud Infrastructure & Cluster Hosting",
       category: "Software & Hosting",
       amount: 1420.5,
       currency: "USD",
-      status: "Approved",
-      date: new Date(Date.now() - 10 * 86400000),
-      submittedBy: adminObjectId,
-      submittedByName: session.userName,
-      tenantId: tenantObjectId,
+      date: new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10),
+      paidBy: session.userName || "Admin",
+      department: "Engineering",
+      venture: "Ace Consultancys",
+      status: "Approved" as const,
+      notes: "Monthly production cluster and managed database hosting.",
     },
     {
+      tenantId: tenantObjectId,
+      createdBy: createdUserIds[1] || adminObjectId,
       title: "Team Engineering Offsite & Hackathon Lunch",
       category: "Team Events",
       amount: 480.0,
       currency: "USD",
-      status: "Approved",
-      date: new Date(Date.now() - 3 * 86400000),
-      submittedBy: createdUserIds[1] || adminObjectId,
-      submittedByName: "Sarah Jenkins",
-      tenantId: tenantObjectId,
+      date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10),
+      paidBy: "Sarah Jenkins",
+      department: "Engineering",
+      venture: "Ace Consultancys",
+      status: "Approved" as const,
+      notes: "Team sprint retrospective catering.",
     },
   ];
 
@@ -931,18 +1016,17 @@ export async function seedWorkspaceDummyData(
 
   // IT Access
   let itAccCount = 0;
-  const existingAccess = await ITAccessEntry.findOne({ tenantId: tenantObjectId, platformName: "AWS Production Management Console" });
+  const existingAccess = await ITAccessEntry.findOne({ tenantId: tenantObjectId, tool: "AWS Management Console" });
   if (!existingAccess) {
     await ITAccessEntry.create({
-      platformName: "AWS Production Management Console",
-      category: "Cloud Hosting",
-      accessUrl: "https://aws.amazon.com/console",
-      accountType: "IAM SSO",
-      assignedRole: "PowerUser",
-      assignedUserId: createdUserIds[3] || adminObjectId,
-      assignedUserName: "David Kim",
-      status: "Active",
       tenantId: tenantObjectId,
+      tool: "AWS Management Console",
+      category: "Cloud Infrastructure",
+      assignee: "David Kim",
+      role: "DevOps Lead",
+      accessLevel: "Admin Access",
+      dateGranted: new Date().toISOString().slice(0, 10),
+      status: "Active",
       createdBy: adminObjectId,
     });
     itAccCount++;
@@ -951,20 +1035,18 @@ export async function seedWorkspaceDummyData(
 
   // IT Subscriptions
   let subCount = 0;
-  const existingSub = await ITSubscription.findOne({ tenantId: tenantObjectId, softwareName: "Slack Enterprise Grid" });
+  const existingSub = await ITSubscription.findOne({ tenantId: tenantObjectId, tool: "Slack Enterprise Grid" });
   if (!existingSub) {
     await ITSubscription.create({
-      softwareName: "Slack Enterprise Grid",
-      vendor: "Salesforce Inc.",
-      billingCycle: "Annual",
-      seatCost: 15,
-      totalSeats: 25,
-      totalCost: 4500,
-      currency: "USD",
-      renewalDate: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
-      status: "Active",
-      category: "Communication",
       tenantId: tenantObjectId,
+      tool: "Slack Enterprise Grid",
+      category: "Communication",
+      plan: "Business+",
+      costPerMonth: 375,
+      seats: 25,
+      renewalDate: new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10),
+      owner: session.userName || "Admin",
+      status: "Active",
       createdBy: adminObjectId,
     });
     subCount++;
@@ -973,15 +1055,22 @@ export async function seedWorkspaceDummyData(
 
   // IT Drive Links
   let driveCount = 0;
-  const existingDrive = await ITDriveLink.findOne({ tenantId: tenantObjectId, title: "Company Engineering Blueprint & Architecture Diagrams" });
+  const existingDrive = await ITDriveLink.findOne({ tenantId: tenantObjectId, name: "Company Engineering Architecture Blueprint" });
   if (!existingDrive) {
     await ITDriveLink.create({
-      title: "Company Engineering Blueprint & Architecture Diagrams",
-      url: "https://drive.google.com/drive/folders/nimo-engineering",
-      category: "Engineering",
-      department: "Engineering",
-      accessLevel: "Internal Team",
       tenantId: tenantObjectId,
+      name: "Company Engineering Architecture Blueprint",
+      category: "Engineering",
+      venture: "Ace Consultancys",
+      platform: "Google Drive",
+      link: "https://drive.google.com/drive/folders/nimo-engineering",
+      owner: session.userName || "Admin",
+      accessLevel: "Edit - Team",
+      shareScope: "All Users",
+      sharedWith: [],
+      lastUpdated: new Date().toISOString().slice(0, 10),
+      reviewFrequency: "Quarterly",
+      notes: "Core system architecture, data models, and API interface specifications.",
       createdBy: adminObjectId,
     });
     driveCount++;
@@ -1012,14 +1101,15 @@ export async function seedWorkspaceDummyData(
 
     // Add initial message in general
     if (ch.name === "general") {
-      const existingMsg = await ChatMessage.findOne({ tenantId: tenantObjectId, channelId: chanDoc._id });
+      const existingMsg = await ChatMessage.findOne({ tenantId: tenantObjectId, channel: "general" });
       if (!existingMsg) {
         await ChatMessage.create({
           tenantId: tenantObjectId,
-          channelId: chanDoc._id,
+          channel: "general",
           senderId: adminObjectId,
           senderName: session.userName || "Admin",
           content: "Welcome to the NIMO-CRM workspace! All core operational modules, task boards, and attendance systems are online.",
+          isDM: false,
           createdAt: new Date(),
         });
         chatCount++;
@@ -1048,73 +1138,93 @@ export async function seedWorkspaceDummyData(
 
   // Kudos & Birthday Wishes
   let kudosCount = 0;
-  const existingKudos = await Kudos.findOne({ tenantId: tenantObjectId, recipientName: "Sarah Jenkins" });
+  const existingKudos = await Kudos.findOne({ tenantId: tenantObjectId, toUserName: "Sarah Jenkins" });
   if (!existingKudos && createdUserIds[1]) {
     await Kudos.create({
       tenantId: tenantObjectId,
-      senderId: adminObjectId,
-      senderName: session.userName || "Admin",
-      recipientId: createdUserIds[1],
-      recipientName: "Sarah Jenkins",
-      badge: "Team Player",
+      fromUserId: adminObjectId,
+      fromUserName: session.userName || "Admin",
+      toUserId: createdUserIds[1],
+      toUserName: "Sarah Jenkins",
+      companyValue: "Excellence & Teamwork",
       message: "Fantastic leadership on the multi-region database migration and zero-downtime cutover!",
-      createdAt: new Date(),
     });
     kudosCount++;
   }
   summary.kudos = kudosCount;
 
   let bwCount = 0;
-  const existingBw = await BirthdayWish.findOne({ tenantId: tenantObjectId, employeeName: "David Kim" });
-  if (!existingBw && createdUserIds[3]) {
-    await BirthdayWish.create({
+  if (createdUserIds[3]) {
+    const existingBw = await BirthdayWish.findOne({
       tenantId: tenantObjectId,
-      employeeId: createdUserIds[3],
-      employeeName: "David Kim",
-      wishedById: adminObjectId,
-      wishedByName: session.userName || "Admin",
-      message: "Happy Birthday David! Wishing you a fantastic year ahead! 🎂",
+      recipientId: createdUserIds[3],
       year: now.getFullYear(),
-      createdAt: new Date(),
     });
-    bwCount++;
+    if (!existingBw) {
+      await BirthdayWish.create({
+        tenantId: tenantObjectId,
+        recipientId: createdUserIds[3],
+        senderId: adminObjectId,
+        senderName: session.userName || "Admin",
+        message: "Happy Birthday David! Wishing you a fantastic year ahead! 🎂",
+        sticker: "cake",
+        type: "birthday",
+        attachments: [],
+        reactions: [],
+        year: now.getFullYear(),
+        acknowledged: false,
+      });
+      bwCount++;
+    }
   }
   summary.birthdayWishes = bwCount;
 
   // 1:1 Meetings
   let m11Count = 0;
-  const existing11 = await OneOnOneMeeting.findOne({ tenantId: tenantObjectId, employeeName: "Marcus Vance" });
-  if (!existing11 && createdUserIds[2]) {
-    await OneOnOneMeeting.create({
-      tenantId: tenantObjectId,
-      managerId: adminObjectId,
-      managerName: session.userName || "Admin",
-      employeeId: createdUserIds[2],
-      employeeName: "Marcus Vance",
-      date: new Date(Date.now() + 2 * 86400000),
-      status: "Scheduled",
-      agenda: "Review Q4 design tokens roadmap and mobile component library sprint items.",
-      notes: "",
-    });
-    m11Count++;
+  if (createdUserIds[2]) {
+    const existing11 = await OneOnOneMeeting.findOne({ tenantId: tenantObjectId, employeeName: "Marcus Vance" });
+    if (!existing11) {
+      await OneOnOneMeeting.create({
+        tenantId: tenantObjectId,
+        managerId: adminObjectId,
+        managerName: session.userName || "Admin",
+        employeeId: createdUserIds[2],
+        employeeName: "Marcus Vance",
+        scheduledDate: new Date(Date.now() + 2 * 86400000),
+        status: "Scheduled",
+        agenda: "Review Q4 design tokens roadmap and mobile component library sprint items.",
+        notes: "Discuss icon system consolidation and mobile responsive breakpoints.",
+        actionItems: [
+          { text: "Prepare Figma design tokens handoff document", completed: false, carriedOver: false },
+        ],
+      });
+      m11Count++;
+    }
   }
   summary.oneOnOneMeetings = m11Count;
 
   // Pulse Surveys
   let psCount = 0;
-  const existingPs = await PulseSurvey.findOne({ tenantId: tenantObjectId, title: "Q4 Team Happiness & Velocity Pulse Survey" });
+  const existingPs = await PulseSurvey.findOne({
+    tenantId: tenantObjectId,
+    question: "How satisfied are you with our current sprint velocity and tooling?",
+  });
   if (!existingPs) {
     await PulseSurvey.create({
       tenantId: tenantObjectId,
-      title: "Q4 Team Happiness & Velocity Pulse Survey",
-      description: "Quick 2-minute pulse check on team morale, workload balance, and engineering tooling support.",
-      status: "Active",
-      questions: [
-        { questionText: "How satisfied are you with our current sprint velocity and tooling?", type: "rating" },
-        { questionText: "Do you have clear priorities and support for this week's goals?", type: "boolean" },
-      ],
       createdBy: adminObjectId,
-      createdAt: new Date(),
+      question: "How satisfied are you with our current sprint velocity and tooling?",
+      category: "Workload",
+      active: true,
+      responses: [
+        {
+          userId: adminObjectId,
+          userName: session.userName || "Admin",
+          rating: 5,
+          feedback: "Sprint setup is very clean and efficient.",
+          submittedAt: new Date(),
+        },
+      ],
     });
     psCount++;
   }
@@ -1186,3 +1296,177 @@ export async function seedWorkspaceDummyData(
 
   return summary as unknown as SeedSummary;
 }
+
+export interface DeleteSummary {
+  departments: number;
+  rolePermissions: number;
+  users: number;
+  projects: number;
+  sprints: number;
+  tasks: number;
+  clients: number;
+  attendance: number;
+  timeEntries: number;
+  leads: number;
+  deals: number;
+  proposals: number;
+  referrals: number;
+  leaveBalances: number;
+  leaveRequests: number;
+  holidays: number;
+  checklists: number;
+  salarySlips: number;
+  invoices: number;
+  expenses: number;
+  devices: number;
+  itAccess: number;
+  subscriptions: number;
+  driveLinks: number;
+  channels: number;
+  chatMessages: number;
+  announcements: number;
+  kudos: number;
+  birthdayWishes: number;
+  oneOnOneMeetings: number;
+  pulseSurveys: number;
+  wikis: number;
+  totalDeleted: number;
+}
+
+export async function deleteWorkspaceDummyData(
+  tenantObjectId: mongoose.Types.ObjectId,
+  session: { userId: string; userEmail?: string; userName?: string; role?: string }
+): Promise<DeleteSummary> {
+  await connectToDatabase();
+  const adminObjectId = new mongoose.Types.ObjectId(session.userId);
+
+  // Perform parallel deletion of tenant records across all CRM domains,
+  // STRICTLY PRESERVING:
+  // 1. The active admin user account (_id: { $ne: adminObjectId })
+  // 2. The Tenant document itself (never touched)
+  const [
+    delUsers,
+    delProjects,
+    delSprints,
+    delTasks,
+    delClients,
+    delAttendance,
+    delTimeEntries,
+    delLeads,
+    delDeals,
+    delProposals,
+    delReferrals,
+    delLeaveBalances,
+    delLeaveRequests,
+    delHolidays,
+    delChecklists,
+    delSalarySlips,
+    delInvoices,
+    delExpenses,
+    delDevices,
+    delITAccess,
+    delSubscriptions,
+    delDriveLinks,
+    delChannels,
+    delChatMessages,
+    delAnnouncements,
+    delKudos,
+    delBirthdayWishes,
+    delOneOnOnes,
+    delPulseSurveys,
+    delWikis,
+    delDepts,
+    delRoles,
+  ] = await Promise.all([
+    User.deleteMany({ tenantId: tenantObjectId, _id: { $ne: adminObjectId } }),
+    Project.deleteMany({ tenantId: tenantObjectId }),
+    Sprint.deleteMany({ tenantId: tenantObjectId }),
+    Task.deleteMany({ tenantId: tenantObjectId }),
+    Client.deleteMany({ tenantId: tenantObjectId }),
+    Attendance.deleteMany({ tenantId: tenantObjectId }),
+    TimeEntry.deleteMany({ tenantId: tenantObjectId }),
+    Lead.deleteMany({ tenantId: tenantObjectId }),
+    SalesDeal.deleteMany({ tenantId: tenantObjectId }),
+    Proposal.deleteMany({ tenantId: tenantObjectId }),
+    Referral.deleteMany({ tenantId: tenantObjectId }),
+    LeaveBalance.deleteMany({ tenantId: tenantObjectId }),
+    LeaveRequest.deleteMany({ tenantId: tenantObjectId }),
+    Holiday.deleteMany({ tenantId: tenantObjectId }),
+    ChecklistPreset.deleteMany({ tenantId: tenantObjectId }),
+    SalarySlip.deleteMany({ tenantId: tenantObjectId }),
+    FinanceInvoice.deleteMany({ tenantId: tenantObjectId }),
+    FinanceExpense.deleteMany({ tenantId: tenantObjectId }),
+    ITDevice.deleteMany({ tenantId: tenantObjectId }),
+    ITAccessEntry.deleteMany({ tenantId: tenantObjectId }),
+    ITSubscription.deleteMany({ tenantId: tenantObjectId }),
+    ITDriveLink.deleteMany({ tenantId: tenantObjectId }),
+    Channel.deleteMany({ tenantId: tenantObjectId }),
+    ChatMessage.deleteMany({ tenantId: tenantObjectId }),
+    Announcement.deleteMany({ tenantId: tenantObjectId }),
+    Kudos.deleteMany({ tenantId: tenantObjectId }),
+    BirthdayWish.deleteMany({ tenantId: tenantObjectId }),
+    OneOnOneMeeting.deleteMany({ tenantId: tenantObjectId }),
+    PulseSurvey.deleteMany({ tenantId: tenantObjectId }),
+    Wiki.deleteMany({ tenantId: tenantObjectId }),
+    Department.deleteMany({ tenantId: tenantObjectId }),
+    RolePermission.deleteMany({ tenantId: tenantObjectId }),
+  ]);
+
+  const summary: DeleteSummary = {
+    users: delUsers.deletedCount || 0,
+    projects: delProjects.deletedCount || 0,
+    sprints: delSprints.deletedCount || 0,
+    tasks: delTasks.deletedCount || 0,
+    clients: delClients.deletedCount || 0,
+    attendance: delAttendance.deletedCount || 0,
+    timeEntries: delTimeEntries.deletedCount || 0,
+    leads: delLeads.deletedCount || 0,
+    deals: delDeals.deletedCount || 0,
+    proposals: delProposals.deletedCount || 0,
+    referrals: delReferrals.deletedCount || 0,
+    leaveBalances: delLeaveBalances.deletedCount || 0,
+    leaveRequests: delLeaveRequests.deletedCount || 0,
+    holidays: delHolidays.deletedCount || 0,
+    checklists: delChecklists.deletedCount || 0,
+    salarySlips: delSalarySlips.deletedCount || 0,
+    invoices: delInvoices.deletedCount || 0,
+    expenses: delExpenses.deletedCount || 0,
+    devices: delDevices.deletedCount || 0,
+    itAccess: delITAccess.deletedCount || 0,
+    subscriptions: delSubscriptions.deletedCount || 0,
+    driveLinks: delDriveLinks.deletedCount || 0,
+    channels: delChannels.deletedCount || 0,
+    chatMessages: delChatMessages.deletedCount || 0,
+    announcements: delAnnouncements.deletedCount || 0,
+    kudos: delKudos.deletedCount || 0,
+    birthdayWishes: delBirthdayWishes.deletedCount || 0,
+    oneOnOneMeetings: delOneOnOnes.deletedCount || 0,
+    pulseSurveys: delPulseSurveys.deletedCount || 0,
+    wikis: delWikis.deletedCount || 0,
+    departments: delDepts.deletedCount || 0,
+    rolePermissions: delRoles.deletedCount || 0,
+    totalDeleted: 0,
+  };
+
+  const total = Object.values(summary).reduce((acc, v) => acc + (typeof v === "number" ? v : 0), 0);
+  summary.totalDeleted = total;
+
+  // Log in immutable ActivityLog
+  try {
+    await ActivityLog.create({
+      tenantId: tenantObjectId,
+      userId: adminObjectId,
+      userName: session.userName || "Admin",
+      userRole: session.role || "Admin",
+      action: "WORKSPACE_DELETE_DUMMY_DATA",
+      targetName: "full_crm_purge_dummy_data",
+      details: `Purged ${total} dummy demo records across all CRM modules. Admin account preserved safely.`,
+    });
+  } catch (err) {
+    console.warn("Failed to write ActivityLog for delete dummy data:", err);
+  }
+
+  return summary;
+}
+
+
